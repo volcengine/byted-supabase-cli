@@ -1,9 +1,20 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/supabase/cli/internal/orgs/create"
-	"github.com/supabase/cli/internal/orgs/list"
+	"github.com/volcengine/byted-supabase-cli/internal/orgs/create"
+	"github.com/volcengine/byted-supabase-cli/internal/orgs/list"
 )
 
 var (
@@ -36,5 +47,5 @@ var (
 func init() {
 	orgsCmd.AddCommand(orgsListCmd)
 	orgsCmd.AddCommand(orgsCreateCmd)
-	rootCmd.AddCommand(orgsCmd)
+	// rootCmd.AddCommand(orgsCmd) // Volcengine has no equivalent organization resource; code retained but not registered
 }

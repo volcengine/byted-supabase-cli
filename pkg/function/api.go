@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/supabase/cli/pkg/api"
+	"github.com/volcengine/byted-supabase-cli/pkg/api"
 )
 
 type EdgeRuntimeAPI struct {

@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-errors/errors"
-	"github.com/supabase/cli/pkg/fetcher"
+	"github.com/volcengine/byted-supabase-cli/pkg/fetcher"
 )
 
 var errPostgrestVersion = errors.New("PostgREST version not found.")

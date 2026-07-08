@@ -14,12 +14,12 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/supabase/cli/internal/testing/apitest"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/internal/utils/flags"
-	"github.com/supabase/cli/pkg/api"
-	"github.com/supabase/cli/pkg/cast"
-	"github.com/supabase/cli/pkg/config"
+	"github.com/volcengine/byted-supabase-cli/internal/testing/apitest"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/pkg/api"
+	"github.com/volcengine/byted-supabase-cli/pkg/cast"
+	"github.com/volcengine/byted-supabase-cli/pkg/config"
 )
 
 func TestDeployCommand(t *testing.T) {

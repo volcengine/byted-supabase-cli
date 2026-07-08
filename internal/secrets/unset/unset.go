@@ -9,8 +9,8 @@ import (
 
 	"github.com/go-errors/errors"
 	"github.com/spf13/afero"
-	"github.com/supabase/cli/internal/secrets/list"
-	"github.com/supabase/cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/secrets/list"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
 )
 
 func Run(ctx context.Context, projectRef string, args []string, fsys afero.Fs) error {

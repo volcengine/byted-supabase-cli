@@ -1,3 +1,14 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package utils
 
 import (
@@ -9,12 +20,13 @@ import (
 	"github.com/go-errors/errors"
 	"github.com/h2non/gock"
 	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v4"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/supabase/cli/internal/testing/apitest"
-	"github.com/supabase/cli/internal/utils/cloudflare"
-	"github.com/supabase/cli/pkg/pgtest"
+	"github.com/volcengine/byted-supabase-cli/internal/testing/apitest"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/cloudflare"
+	"github.com/volcengine/byted-supabase-cli/pkg/pgtest"
 )
 
 var dbConfig = pgconn.Config{
@@ -127,6 +139,19 @@ func TestConnectLocal(t *testing.T) {
 		Config.Db.Port = 0
 		_, err := ConnectLocalPostgres(context.Background(), pgconn.Config{})
 		assert.ErrorContains(t, err, "invalid port (outside range)")
+	})
+}
+
+func TestSetupDebugPGX(t *testing.T) {
+	t.Run("preserves tls connections", func(t *testing.T) {
+		config, err := pgx.ParseConfig("postgresql://postgres:password@db.example.com/postgres?sslmode=require")
+		require.NoError(t, err)
+		require.NotNil(t, config.TLSConfig)
+
+		tlsConfig := config.TLSConfig
+		setupDebugPGX(config)
+
+		assert.Same(t, tlsConfig, config.TLSConfig)
 	})
 }
 

@@ -1,3 +1,14 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package set
 
 import (
@@ -12,9 +23,9 @@ import (
 	"github.com/go-errors/errors"
 	"github.com/joho/godotenv"
 	"github.com/spf13/afero"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/internal/utils/flags"
-	"github.com/supabase/cli/pkg/api"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/pkg/api"
 )
 
 func Run(ctx context.Context, projectRef, envFilePath string, args []string, fsys afero.Fs) error {
@@ -22,10 +33,7 @@ func Run(ctx context.Context, projectRef, envFilePath string, args []string, fsy
 	if err := flags.LoadConfig(fsys); err != nil {
 		fmt.Fprintln(utils.GetDebugLogger(), err)
 	}
-	if len(envFilePath) > 0 && !filepath.IsAbs(envFilePath) {
-		envFilePath = filepath.Join(utils.CurrentDirAbs, envFilePath)
-	}
-	secrets, err := ListSecrets(envFilePath, fsys, args...)
+	secrets, err := parseSecrets(envFilePath, fsys, args...)
 	if err != nil {
 		return err
 	}
@@ -41,6 +49,13 @@ func Run(ctx context.Context, projectRef, envFilePath string, args []string, fsy
 	}
 	fmt.Println("Finished " + utils.Aqua("supabase secrets set") + ".")
 	return nil
+}
+
+func parseSecrets(envFilePath string, fsys afero.Fs, envArgs ...string) (api.CreateSecretBody, error) {
+	if len(envFilePath) > 0 && !filepath.IsAbs(envFilePath) {
+		envFilePath = filepath.Join(utils.CurrentDirAbs, envFilePath)
+	}
+	return ListSecrets(envFilePath, fsys, envArgs...)
 }
 
 func ListSecrets(envFilePath string, fsys afero.Fs, envArgs ...string) (api.CreateSecretBody, error) {

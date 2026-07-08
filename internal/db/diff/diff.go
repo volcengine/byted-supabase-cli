@@ -23,11 +23,11 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
-	"github.com/supabase/cli/internal/db/start"
-	"github.com/supabase/cli/internal/pgdelta"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/pkg/migration"
-	"github.com/supabase/cli/pkg/parser"
+	"github.com/volcengine/byted-supabase-cli/internal/db/start"
+	"github.com/volcengine/byted-supabase-cli/internal/pgdelta"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/pkg/migration"
+	"github.com/volcengine/byted-supabase-cli/pkg/parser"
 )
 
 type DiffFunc func(context.Context, pgconn.Config, pgconn.Config, []string, ...func(*pgx.ConnConfig)) (string, error)

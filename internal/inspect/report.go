@@ -17,8 +17,8 @@ import (
 	"github.com/jackc/pgx/v4"
 	_ "github.com/mithrandie/csvq-driver"
 	"github.com/spf13/afero"
-	"github.com/supabase/cli/internal/db/reset"
-	"github.com/supabase/cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/db/reset"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
 )
 
 //go:embed **/*.sql

@@ -11,9 +11,9 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/internal/utils/flags"
-	"github.com/supabase/cli/pkg/api"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/pkg/api"
 )
 
 func TestSuggestAppStart(t *testing.T) {

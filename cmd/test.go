@@ -3,8 +3,8 @@ package cmd
 import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
-	"github.com/supabase/cli/internal/test/new"
-	"github.com/supabase/cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/test/new"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
 )
 
 var (
@@ -48,5 +48,7 @@ func init() {
 	newFlags.VarP(&template, "template", "t", "Template framework to generate.")
 	testCmd.AddCommand(testNewCmd)
 	// Build test command
-	rootCmd.AddCommand(testCmd)
+	// Volcengine CLI does not support Supabase local stack tests in the current phase.
+	// Keep the original command registered code here for future local development support.
+	// rootCmd.AddCommand(testCmd)
 }

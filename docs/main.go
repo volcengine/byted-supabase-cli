@@ -11,8 +11,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	cli "github.com/supabase/cli/cmd"
-	"github.com/supabase/cli/internal/utils"
+	cli "github.com/volcengine/byted-supabase-cli/cmd"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
 	"gopkg.in/yaml.v3"
 )
 
@@ -57,8 +57,8 @@ func generate(version string) error {
 			Title:       strings.TrimSpace(root.Short),
 			Description: forceMultiLine("Supabase CLI provides you with tools to develop your application locally, and deploy your application to the Supabase platform."),
 			Language:    "sh",
-			Source:      "https://github.com/supabase/cli",
-			Bugs:        "https://github.com/supabase/cli/issues",
+			Source:      "https://github.com/volcengine/byted-supabase-cli",
+			Bugs:        "https://github.com/volcengine/byted-supabase-cli/issues",
 			Spec:        "https://github.com/supabase/spec/cli_v1_commands.yaml",
 			Tags:        getTags(root),
 		},

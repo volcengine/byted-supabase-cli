@@ -12,9 +12,9 @@ import (
 	"github.com/go-errors/errors"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
-	"github.com/supabase/cli/internal/gen/types"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/pkg/config"
+	"github.com/volcengine/byted-supabase-cli/internal/gen/types"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/pkg/config"
 )
 
 //go:embed templates/pgdelta.ts

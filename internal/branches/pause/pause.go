@@ -6,8 +6,8 @@ import (
 
 	"github.com/go-errors/errors"
 	"github.com/google/uuid"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 )
 
 func Run(ctx context.Context, branchId string) error {

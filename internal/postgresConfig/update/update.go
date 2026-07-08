@@ -10,8 +10,8 @@ import (
 
 	"github.com/go-errors/errors"
 	"github.com/spf13/afero"
-	"github.com/supabase/cli/internal/postgresConfig/get"
-	"github.com/supabase/cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/postgresConfig/get"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
 )
 
 func Run(ctx context.Context, projectRef string, values []string, replaceOverrides, noRestart bool, fsys afero.Fs) error {

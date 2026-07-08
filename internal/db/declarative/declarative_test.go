@@ -13,10 +13,10 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/supabase/cli/internal/db/diff"
-	"github.com/supabase/cli/internal/db/pgcache"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/pkg/config"
+	"github.com/volcengine/byted-supabase-cli/internal/db/diff"
+	"github.com/volcengine/byted-supabase-cli/internal/db/pgcache"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/pkg/config"
 )
 
 func TestWriteDeclarativeSchemas(t *testing.T) {

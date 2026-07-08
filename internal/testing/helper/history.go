@@ -1,8 +1,8 @@
 package helper
 
 import (
-	"github.com/supabase/cli/pkg/migration"
-	"github.com/supabase/cli/pkg/pgtest"
+	"github.com/volcengine/byted-supabase-cli/pkg/migration"
+	"github.com/volcengine/byted-supabase-cli/pkg/pgtest"
 )
 
 func MockMigrationHistory(conn *pgtest.MockConn) *pgtest.MockConn {

@@ -20,10 +20,10 @@ import (
 	"github.com/go-errors/errors"
 	"github.com/google/uuid"
 	"github.com/spf13/afero"
-	"github.com/supabase/cli/internal/migration/new"
-	phtelemetry "github.com/supabase/cli/internal/telemetry"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/pkg/fetcher"
+	"github.com/volcengine/byted-supabase-cli/internal/migration/new"
+	phtelemetry "github.com/volcengine/byted-supabase-cli/internal/telemetry"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/pkg/fetcher"
 )
 
 type RunParams struct {

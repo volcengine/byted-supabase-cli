@@ -1,3 +1,14 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package cmd
 
 import (
@@ -17,10 +28,12 @@ import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/supabase/cli/internal/debug"
-	"github.com/supabase/cli/internal/telemetry"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/internal/debug"
+	"github.com/volcengine/byted-supabase-cli/internal/skills"
+	"github.com/volcengine/byted-supabase-cli/internal/telemetry"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 	"golang.org/x/mod/semver"
 )
 
@@ -44,23 +57,196 @@ func IsManagementAPI(cmd *cobra.Command) bool {
 	return false
 }
 
-func promptLogin(fsys afero.Fs) error {
+func promptLogin(ctx context.Context, cmd *cobra.Command, fsys afero.Fs) error {
+	if isVolcengineManagementCommand(cmd) {
+		if err := volcengine.RequireAccessKeysEnv(); err != nil {
+			shouldLogin, detectErr := volcengine.HasNoProfilesAndNoCredentialsEnv()
+			if detectErr != nil || !shouldLogin {
+				return err
+			}
+			fmt.Fprintln(os.Stderr, "No Volcengine profile found.")
+			fmt.Fprintf(os.Stderr, "You can configure AK/SK with `%s`, or set %s and %s.\n", "byted-supabase-cli configure set --access-key <key> --secret-key <secret> --region <region>", volcengine.EnvAccessKeyID, volcengine.EnvSecretAccessKey)
+			fmt.Fprintln(os.Stderr, "Alternatively, open the following URL to complete Console Login.")
+			fmt.Fprintf(os.Stderr, "No region was provided; using default region %q. You can change it later with `%s`.\n", volcengine.DefaultConsoleLoginRegion, "byted-supabase-cli configure region <region>")
+			fmt.Fprintln(os.Stderr, "Press Ctrl+C to cancel.")
+			if loginErr := volcengine.RunConsoleLogin(ctx, volcengine.ConsoleLoginParams{
+				Profile: "default",
+				Region:  volcengine.DefaultConsoleLoginRegion,
+				NoOpen:  true,
+			}, os.Stdin, os.Stderr); loginErr != nil {
+				return loginErr
+			}
+			return volcengine.RequireAccessKeysEnv()
+		}
+		return nil
+	}
 	if _, err := utils.LoadAccessTokenFS(fsys); err == utils.ErrMissingToken {
-		utils.CmdSuggestion = fmt.Sprintf("Run %s first.", utils.Aqua("supabase login"))
+		utils.CmdSuggestion = fmt.Sprintf("Run %s first.", utils.Aqua("byted-supabase-cli login"))
 		return errors.New("You need to be logged-in in order to use Management API commands.")
 	} else {
 		return err
 	}
 }
 
+func isVolcengineManagementCommand(cmd *cobra.Command) bool {
+	if cmd.Parent() == nil {
+		return false
+	}
+	if hasCommandAncestor(cmd, "pages") {
+		switch cmd.Name() {
+		case "bind", "binding", "create", "deploy", "env-vars", "list", "sync", "unbind", "upload":
+			return true
+		}
+	}
+	switch cmd.Parent().Name() {
+	case "projects":
+		switch cmd.Name() {
+		case "api-keys", "compute-settings", "create", "create-tags", "delete", "delete-tags", "deletion-protection", "list", "operations", "overview", "rename", "start", "stop", "workspace-settings":
+			return true
+		}
+	case "branches":
+		switch cmd.Name() {
+		case "create", "delete", "get", "get-default", "list", "restorable", "restart", "restore", "restore-window", "set-default", "update", "update-studio-login":
+			return true
+		}
+	case "computes":
+		switch cmd.Name() {
+		case "get", "list", "update":
+			return true
+		}
+	case "network-restrictions":
+		switch cmd.Name() {
+		case "create", "delete", "get", "update":
+			return true
+		}
+	case "endpoints":
+		switch cmd.Name() {
+		case "disable-public", "enable-private", "enable-public", "list":
+			return true
+		}
+	case "storage":
+		// Storage object access is served by the selected Volcengine branch.
+		switch cmd.Name() {
+		case "ls", "cp", "rm", "mv":
+			return true
+		}
+	case "functions":
+		// Function management is served by the selected Volcengine branch gateway.
+		switch cmd.Name() {
+		case "list", "delete", "download", "deploy":
+			return true
+		}
+	case "secrets":
+		// Function secrets are scoped to the selected Volcengine branch gateway.
+		switch cmd.Name() {
+		case "list", "set", "unset":
+			return true
+		}
+	case "config":
+		// Auth config commands go through the branch Auth Admin API.
+		if cmd.Parent().Parent() != nil && cmd.Parent().Parent().Name() == "auth" {
+			return true
+		}
+	case "hooks":
+		// Auth hooks commands go through the branch Auth Admin API.
+		if cmd.Parent().Parent() != nil && cmd.Parent().Parent().Name() == "auth" {
+			return true
+		}
+	case "third-party":
+		// Auth third-party commands go through the branch Auth Admin API.
+		if cmd.Parent().Parent() != nil && cmd.Parent().Parent().Name() == "auth" {
+			return true
+		}
+	case "api-config":
+		// DATA API config commands go through the branch PostgREST Admin API.
+		if cmd.Parent().Parent() != nil && cmd.Parent().Parent().Name() == "db" {
+			return true
+		}
+	case "buckets":
+		return cmd.Parent().Parent() != nil && cmd.Parent().Parent().Name() == "storage"
+	case "seed":
+		// Standard bucket seeding uploads objects through the branch Storage gateway.
+		return cmd.Name() == "buckets"
+	case "eips":
+		return cmd.Parent().Parent() != nil && cmd.Parent().Parent().Name() == "endpoints" && cmd.Name() == "list"
+	case "vpcs", "subnets":
+		return cmd.Parent().Parent() != nil && cmd.Parent().Parent().Name() == "endpoints" && cmd.Name() == "list"
+	}
+	return false
+}
+
+func hasCommandAncestor(cmd *cobra.Command, name string) bool {
+	for current := cmd.Parent(); current != nil; current = current.Parent() {
+		if current.Name() == name {
+			return true
+		}
+	}
+	return false
+}
+
+func isVolcengineRemoteDataPlaneCommand(cmd *cobra.Command) bool {
+	return cmd == dbQueryCmd ||
+		cmd == dbConnectionStringCmd ||
+		cmd == dbDumpCmd ||
+		cmd == dbPullCmd ||
+		cmd == dbAdvisorsCmd ||
+		cmd == genTypesCmd ||
+		isVolcengineInspectCommand(cmd) ||
+		cmd == lsCmd ||
+		cmd == cpCmd ||
+		cmd == rmCmd ||
+		cmd == mvCmd ||
+		cmd == storageBucketsListCmd ||
+		cmd == storageBucketsGetCmd ||
+		cmd == storageBucketsCreateCmd ||
+		cmd == storageBucketsUpdateCmd ||
+		cmd == storageBucketsDeleteCmd ||
+		cmd == bucketsCmd ||
+		cmd == functionsListCmd ||
+		cmd == functionsDeleteCmd ||
+		cmd == functionsDownloadCmd ||
+		cmd == functionsDeployCmd ||
+		cmd == secretsListCmd ||
+		cmd == secretsSetCmd ||
+		cmd == secretsUnsetCmd ||
+		cmd == authConfigGetCmd ||
+		cmd == authConfigSetCmd ||
+		cmd == authHooksGetCmd ||
+		cmd == authHooksSetCmd ||
+		cmd == authTPListCmd ||
+		cmd == authTPAddCmd ||
+		cmd == authTPRemoveCmd ||
+		cmd == authTPSyncCmd ||
+		cmd == dbAPIConfigGetCmd ||
+		cmd == dbAPIConfigSetCmd
+}
+
+func printVolcengineDebugProfile() {
+	_, profileName, profile, err := volcengine.LoadSelectedProfile()
+	if err != nil {
+		fmt.Fprintln(utils.GetDebugLogger(), err)
+		return
+	}
+	if profile == nil {
+		fmt.Fprintln(os.Stderr, "Using Volcengine profile: <env>")
+		return
+	}
+	region := strings.TrimSpace(profile.Region)
+	if region == "" {
+		region = "<not set>"
+	}
+	fmt.Fprintf(os.Stderr, "Using Volcengine profile: %s (%s)\n", profileName, region)
+}
+
 var experimental = []*cobra.Command{
-	bansCmd,
-	restrictionsCmd,
+	// Volcengine currently has no equivalent API for Supabase network bans.
+	// Keep the original command implementation for reference, but do not register
+	// or gate it as an experimental command in the Volcengine CLI.
+	// bansCmd,
 	vanityCmd,
 	sslEnforcementCmd,
 	genKeysCmd,
 	postgresCmd,
-	storageCmd,
 	dbDeclarativeCmd,
 }
 
@@ -85,10 +271,11 @@ var (
 	}
 
 	createTicket bool
+	rootProfile  string
 
 	rootCmd = &cobra.Command{
-		Use:     "supabase",
-		Short:   "Supabase CLI " + utils.Version,
+		Use:     "byted-supabase-cli",
+		Short:   "Byted Supabase CLI " + utils.Version,
 		Version: utils.Version,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if IsExperimental(cmd) && !viper.GetBool("EXPERIMENTAL") {
@@ -98,31 +285,47 @@ var (
 			// Load profile before changing workdir
 			ctx, _ := signal.NotifyContext(cmd.Context(), os.Interrupt)
 			fsys := afero.NewOsFs()
-			if err := utils.LoadProfile(ctx, fsys); err != nil {
-				return err
+			isVolcengineRemoteDataPlane := isVolcengineRemoteDataPlaneCommand(cmd)
+			isVolcengineCommand := isVolcengineManagementCommand(cmd) || isVolcengineRemoteDataPlane
+			if !isVolcengineCommand {
+				if err := utils.LoadProfile(ctx, fsys); err != nil {
+					return err
+				}
 			}
 			if err := utils.ChangeWorkDir(fsys); err != nil {
 				return err
 			}
+			if profileFlag := cmd.Root().PersistentFlags().Lookup("profile"); profileFlag != nil && profileFlag.Changed {
+				volcengine.SetProfileOverride(rootProfile)
+			}
+			volcengine.SetRegionOverride(volcRegion)
 			// Add common flags
 			if IsManagementAPI(cmd) {
-				if err := promptLogin(fsys); err != nil {
+				if err := promptLogin(ctx, cmd, fsys); err != nil {
 					return err
 				}
-				if cmd.Flags().Lookup("project-ref") != nil {
+				if cmd.Flags().Lookup("project-ref") != nil && !isVolcengineManagementCommand(cmd) {
 					if err := flags.ParseProjectRef(ctx, fsys); err != nil {
 						return err
 					}
 				}
 			}
-			if err := flags.ParseDatabaseConfig(ctx, cmd.Flags(), fsys); err != nil {
-				return err
+			// Volcengine remote data-plane commands resolve linked/project targets
+			// with AIDAP. Explicit DB URLs retain the original parser.
+			if !isVolcengineRemoteDataPlane || cmd.Flags().Changed("db-url") {
+				if err := flags.ParseDatabaseConfig(ctx, cmd.Flags(), fsys); err != nil {
+					return err
+				}
 			}
 			// Prepare context
 			if viper.GetBool("DEBUG") {
 				http.DefaultTransport = debug.NewTransport()
 				fmt.Fprintln(os.Stderr, cmd.Root().Short)
-				fmt.Fprintf(os.Stderr, "Using profile: %s (%s)\n", utils.CurrentProfile.Name, utils.CurrentProfile.ProjectHost)
+				if isVolcengineCommand {
+					printVolcengineDebugProfile()
+				} else {
+					fmt.Fprintf(os.Stderr, "Using profile: %s (%s)\n", utils.CurrentProfile.Name, utils.CurrentProfile.ProjectHost)
+				}
 			}
 			isTTY := telemetryIsTTY()
 			isCI := telemetryIsCI()
@@ -196,19 +399,41 @@ func Execute() {
 	if hint := utils.SuggestClaudePlugin(); hint != "" {
 		fmt.Fprintln(os.Stderr, hint)
 	}
-	if semver.Compare(version, "v"+utils.Version) > 0 {
+	if (executedCmd == nil || executedCmd.Name() != "update") && semver.Compare(version, "v"+utils.Version) > 0 {
 		fmt.Fprintln(os.Stderr, suggestUpgrade(version))
+	}
+	// Cheap, network-free skill drift check: if the locally installed
+	// byted-supabase skill was synced for an older CLI version, hint at
+	// `skills install`. Suppressed for the update/skills commands, which sync
+	// the skill themselves.
+	if !skillsNoticeSuppressed(executedCmd) {
+		skills.Init(utils.Version)
+		if n := skills.GetPending(); n != nil {
+			fmt.Fprintln(os.Stderr, n.Message())
+		}
 	}
 	if len(utils.CmdSuggestion) > 0 {
 		fmt.Fprintln(os.Stderr, utils.CmdSuggestion)
 	}
 }
 
+// skillsNoticeSuppressed reports whether the executed command (or any ancestor)
+// is the update or skills command, in which case the stale-skill hint is noise.
+func skillsNoticeSuppressed(cmd *cobra.Command) bool {
+	for c := cmd; c != nil; c = c.Parent() {
+		switch c.Name() {
+		case "update", "skills":
+			return true
+		}
+	}
+	return false
+}
+
 // ensureProjectGroupsCached populates the telemetry linked-project cache when
 // a project ref is available but no cache exists. This ensures org/project
-// PostHog groups are attached to all CLI events, not just those after `supabase link`.
+// PostHog groups are attached to all CLI events, not just those after `byted-supabase-cli link`.
 //
-// Does not overwrite an existing cache — `supabase link` is the authoritative source.
+// Does not overwrite an existing cache — `byted-supabase-cli link` is the authoritative source.
 // Checks auth before calling the API to avoid the log.Fatalln in GetSupabase().
 func ensureProjectGroupsCached(ctx context.Context, service *telemetry.Service) {
 	ref := flags.ProjectRef
@@ -270,9 +495,9 @@ func shouldFetchRelease(fsys afero.Fs) bool {
 }
 
 func suggestUpgrade(version string) string {
-	const guide = "https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli"
-	return fmt.Sprintf(`A new version of Supabase CLI is available: %s (currently installed v%s)
-We recommend updating regularly for new features and bug fixes: %s`, utils.Yellow(version), utils.Version, utils.Bold(guide))
+	const command = "byted-supabase-cli update"
+	return fmt.Sprintf(`A new version of Byted Supabase CLI is available: %s (currently installed v%s)
+Update with: %s`, utils.Yellow(version), utils.Version, utils.Bold(command))
 }
 
 func recoverAndExit() {
@@ -294,6 +519,9 @@ func recoverAndExit() {
 			fmt.Fprintln(os.Stderr, string(e.Stack()))
 		}
 		msg = err.Error()
+		if details := volcengine.VolcengineErrorDetailsFromErr(err); !details.Empty() {
+			msg = appendVolcengineErrorDetails(msg, details)
+		}
 	default:
 		msg = fmt.Sprintf("%#v", err)
 	}
@@ -308,10 +536,28 @@ func recoverAndExit() {
 		eventId := sentry.CurrentHub().Recover(err)
 		if eventId != nil && sentry.Flush(2*time.Second) {
 			fmt.Fprintln(os.Stderr, "Sent crash report:", *eventId)
-			fmt.Fprintln(os.Stderr, "Quote the crash ID above when filing a bug report: https://github.com/supabase/cli/issues/new/choose")
+			fmt.Fprintln(os.Stderr, "Quote the crash ID above when filing a bug report: https://github.com/volcengine/byted-supabase-cli/issues/new/choose")
 		}
 	}
 	os.Exit(1)
+}
+
+func appendVolcengineErrorDetails(msg string, details volcengine.ErrorDetails) string {
+	var b strings.Builder
+	b.WriteString(msg)
+	if details.RequestID != "" {
+		fmt.Fprintf(&b, "\nRequest ID: %s", details.RequestID)
+	}
+	if details.StatusCode != "" {
+		fmt.Fprintf(&b, "\nStatus Code: %s", details.StatusCode)
+	}
+	if details.ErrorCode != "" {
+		fmt.Fprintf(&b, "\nError Code: %s", details.ErrorCode)
+	}
+	if details.Message != "" {
+		fmt.Fprintf(&b, "\nMessage: %s", details.Message)
+	}
+	return b.String()
 }
 
 func init() {
@@ -327,12 +573,19 @@ func init() {
 	flags.String("workdir", "", "path to a Supabase project directory")
 	flags.Bool("experimental", false, "enable experimental features")
 	flags.String("network-id", "", "use the specified docker network instead of a generated one")
-	flags.String("profile", "supabase", "use a specific profile for connecting to Supabase API")
+	flags.StringVar(&rootProfile, "profile", "supabase", "use a specific profile; for Volcengine commands, overrides the current configure profile")
+	flags.Lookup("profile").DefValue = "current"
+	flags.StringVar(&volcRegion, "region", "", "Volcengine region for management API requests.")
 	flags.VarP(&utils.OutputFormat, "output", "o", "output format of status variables")
 	flags.Var(&utils.DNSResolver, "dns-resolver", "lookup domain names using the specified resolver")
-	flags.BoolVar(&createTicket, "create-ticket", false, "create a support ticket for any CLI error")
+	// Volcengine CLI does not support public support-ticket creation yet.
+	// Keep the original implementation for future integration, but do not expose the flag.
+	// flags.BoolVar(&createTicket, "create-ticket", false, "create a support ticket for any CLI error")
 	flags.VarP(&utils.AgentMode, "agent", "", "Override agent detection: yes, no, or auto (default auto)")
 	cobra.CheckErr(viper.BindPFlags(flags))
+	cobra.CheckErr(flags.MarkHidden("experimental"))
+	cobra.CheckErr(flags.MarkHidden("network-id"))
+	cobra.CheckErr(flags.MarkHidden("dns-resolver"))
 
 	rootCmd.SetVersionTemplate("{{.Version}}\n")
 	rootCmd.AddGroup(&cobra.Group{ID: groupQuickStart, Title: "Quick Start:"})

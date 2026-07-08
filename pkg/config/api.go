@@ -3,9 +3,9 @@ package config
 import (
 	"strings"
 
-	v1API "github.com/supabase/cli/pkg/api"
-	"github.com/supabase/cli/pkg/cast"
-	"github.com/supabase/cli/pkg/diff"
+	v1API "github.com/volcengine/byted-supabase-cli/pkg/api"
+	"github.com/volcengine/byted-supabase-cli/pkg/cast"
+	"github.com/volcengine/byted-supabase-cli/pkg/diff"
 )
 
 type (

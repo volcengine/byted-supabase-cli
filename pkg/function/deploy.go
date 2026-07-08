@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 
 	"github.com/go-errors/errors"
-	"github.com/supabase/cli/pkg/api"
-	"github.com/supabase/cli/pkg/cast"
-	"github.com/supabase/cli/pkg/config"
-	"github.com/supabase/cli/pkg/queue"
+	"github.com/volcengine/byted-supabase-cli/pkg/api"
+	"github.com/volcengine/byted-supabase-cli/pkg/cast"
+	"github.com/volcengine/byted-supabase-cli/pkg/config"
+	"github.com/volcengine/byted-supabase-cli/pkg/queue"
 )
 
 var ErrNoDeploy = errors.New("All Functions are up to date.")

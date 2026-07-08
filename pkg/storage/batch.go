@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 
 	"github.com/go-errors/errors"
-	"github.com/supabase/cli/pkg/config"
-	"github.com/supabase/cli/pkg/queue"
+	"github.com/volcengine/byted-supabase-cli/pkg/config"
+	"github.com/volcengine/byted-supabase-cli/pkg/queue"
 )
 
 func (s *StorageAPI) UpsertBuckets(ctx context.Context, bucketConfig config.BucketConfig, filter ...func(string) bool) error {

@@ -1,3 +1,14 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package dump
 
 import (
@@ -13,8 +24,8 @@ import (
 	"github.com/go-errors/errors"
 	"github.com/jackc/pgconn"
 	"github.com/spf13/afero"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/pkg/migration"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/pkg/migration"
 )
 
 func Run(ctx context.Context, path string, config pgconn.Config, dataOnly, roleOnly, dryRun bool, fsys afero.Fs, opts ...migration.DumpOptionFunc) error {
@@ -55,6 +66,9 @@ func noExec(ctx context.Context, script string, env []string, w io.Writer) error
 			continue
 		}
 		envMap[e[:index]] = e[index+1:]
+	}
+	if _, ok := envMap["PGPASSWORD"]; ok {
+		envMap["PGPASSWORD"] = "<redacted>"
 	}
 	expanded := os.Expand(script, func(key string) string {
 		// Bash variable expansion is unsupported:

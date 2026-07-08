@@ -1,10 +1,21 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package storage
 
 import (
 	"context"
 	"net/http"
 
-	"github.com/supabase/cli/pkg/fetcher"
+	"github.com/volcengine/byted-supabase-cli/pkg/fetcher"
 )
 
 type BucketResponse struct {
@@ -24,6 +35,14 @@ func (s *StorageAPI) ListBuckets(ctx context.Context) ([]BucketResponse, error) 
 		return nil, err
 	}
 	return fetcher.ParseJSON[[]BucketResponse](resp.Body)
+}
+
+func (s *StorageAPI) GetBucket(ctx context.Context, bucketID string) (BucketResponse, error) {
+	resp, err := s.Send(ctx, http.MethodGet, "/storage/v1/bucket/"+bucketID, nil)
+	if err != nil {
+		return BucketResponse{}, err
+	}
+	return fetcher.ParseJSON[BucketResponse](resp.Body)
 }
 
 type CreateBucketRequest struct {

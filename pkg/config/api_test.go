@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	v1API "github.com/supabase/cli/pkg/api"
+	v1API "github.com/volcengine/byted-supabase-cli/pkg/api"
 )
 
 func TestApiToUpdatePostgrestConfigBody(t *testing.T) {

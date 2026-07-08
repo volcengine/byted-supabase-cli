@@ -11,9 +11,9 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/supabase/cli/internal/testing/apitest"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/pkg/storage"
+	"github.com/volcengine/byted-supabase-cli/internal/testing/apitest"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/pkg/storage"
 )
 
 func TestSeedBuckets(t *testing.T) {

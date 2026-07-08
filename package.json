@@ -1,45 +1,41 @@
 {
-  "name": "supabase",
-  "version": "0.0.0-automated",
-  "description": "Supabase CLI",
-  "repository": "supabase/cli",
-  "homepage": "https://supabase.com/docs/reference/cli",
-  "bugs": "https://github.com/supabase/cli/issues",
+  "name": "@byted-supabase/cli",
+  "version": "0.1.2",
+  "description": "Byted Supabase CLI",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/volcengine/supabase-cli.git"
+  },
+  "homepage": "https://github.com/volcengine/supabase-cli",
+  "bugs": "https://github.com/volcengine/supabase-cli/issues",
   "license": "MIT",
-  "author": "Supabase",
+  "author": "ByteDance",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "type": "module",
   "engines": {
     "npm": ">=8"
   },
   "files": [
-    "scripts"
+    "bin/cli.js",
+    "bin/install.js"
   ],
   "scripts": {
-    "postinstall": "node scripts/postinstall.js"
+    "release": "node scripts/release.mjs",
+    "release:dry": "node scripts/release.mjs --dry-run",
+    "test:npm": "node --test scripts/install.test.mjs"
   },
   "bin": {
-    "supabase": "bin/supabase"
+    "byted-supabase-cli": "bin/cli.js"
   },
-  "dependencies": {
-    "bin-links": "^6.0.0",
-    "https-proxy-agent": "^9.0.0",
-    "node-fetch": "^3.3.2",
-    "tar": "7.5.13"
-  },
-  "release": {
-    "branches": [
-      {
-        "name": "+([0-9])?(.{+([0-9]),x}).x",
-        "channel": "hotfix"
-      },
-      {
-        "name": "develop",
-        "channel": "latest"
-      }
-    ],
-    "plugins": [
-      "@semantic-release/commit-analyzer",
-      "@semantic-release/git"
-    ]
+  "optionalDependencies": {
+    "@byted-supabase/cli-darwin-x64": "0.1.2",
+    "@byted-supabase/cli-darwin-arm64": "0.1.2",
+    "@byted-supabase/cli-linux-x64": "0.1.2",
+    "@byted-supabase/cli-linux-arm64": "0.1.2",
+    "@byted-supabase/cli-win32-x64": "0.1.2",
+    "@byted-supabase/cli-win32-arm64": "0.1.2"
   }
 }

@@ -3,13 +3,13 @@ package cmd
 import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
-	"github.com/supabase/cli/internal/hostnames/activate"
-	"github.com/supabase/cli/internal/hostnames/create"
-	"github.com/supabase/cli/internal/hostnames/delete"
-	"github.com/supabase/cli/internal/hostnames/get"
-	"github.com/supabase/cli/internal/hostnames/reverify"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/internal/hostnames/activate"
+	"github.com/volcengine/byted-supabase-cli/internal/hostnames/create"
+	"github.com/volcengine/byted-supabase-cli/internal/hostnames/delete"
+	"github.com/volcengine/byted-supabase-cli/internal/hostnames/get"
+	"github.com/volcengine/byted-supabase-cli/internal/hostnames/reverify"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 )
 
 var (
@@ -103,5 +103,7 @@ func init() {
 	customHostnamesCmd.AddCommand(customHostnamesReverifyCmd)
 	customHostnamesCmd.AddCommand(customHostnamesActivateCmd)
 	customHostnamesCmd.AddCommand(customHostnamesDeleteCmd)
-	rootCmd.AddCommand(customHostnamesCmd)
+	// Volcengine: domains manages Supabase custom hostnames, not endpoint public addresses.
+	// Keep the original command code, but do not register it in the first phase.
+	// rootCmd.AddCommand(customHostnamesCmd)
 }

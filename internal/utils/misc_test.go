@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/supabase/cli/pkg/config"
+	"github.com/volcengine/byted-supabase-cli/pkg/config"
 )
 
 type MockFs struct {

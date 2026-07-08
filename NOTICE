@@ -1,0 +1,15 @@
+Byted Supabase CLI
+
+Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+
+This product is a fork of the Supabase CLI (https://github.com/supabase/cli),
+forked at upstream commit e4a7ace0 (2026-05-05).
+
+Supabase CLI
+
+Copyright (c) 2021 Supabase, Inc. and contributors
+
+Code originating from the upstream project remains licensed under the MIT
+License. Modifications made by ByteDance are released under the same MIT
+License. See the LICENSE file in the root of this repository for the full
+license text.

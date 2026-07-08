@@ -10,8 +10,8 @@ import (
 	"github.com/h2non/gock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/supabase/cli/internal/testing/apitest"
-	"github.com/supabase/cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/testing/apitest"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
 )
 
 func TestLogStreamer(t *testing.T) {

@@ -8,10 +8,11 @@ import (
 	"github.com/h2non/gock"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
-	"github.com/supabase/cli/internal/testing/apitest"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/pkg/api"
-	"github.com/supabase/cli/pkg/cast"
+	"github.com/volcengine/byted-supabase-cli/internal/testing/apitest"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
+	"github.com/volcengine/byted-supabase-cli/pkg/api"
+	"github.com/volcengine/byted-supabase-cli/pkg/cast"
 )
 
 func TestProjectCreateCommand(t *testing.T) {
@@ -111,3 +112,22 @@ func TestProjectCreateCommand(t *testing.T) {
 		assert.Empty(t, apitest.ListUnmatchedRequests())
 	})
 }
+
+func intPtr(v int) *int { return &v }
+
+func TestApplyAgentPlanSuspendDefault(t *testing.T) {
+	// An explicit --suspend-timeout-seconds is honoured as-is: no Agent Plan
+	// resolution or personal-plan lookup happens (nil client is safe to pass).
+	t.Run("keeps explicit suspend timeout", func(t *testing.T) {
+		params := volcengine.CreateWorkspaceParams{
+			IsAgentPlan:           boolPtr(true),
+			SuspendTimeoutSeconds: intPtr(900),
+		}
+		assert.NoError(t, applyAgentPlanSuspendDefault(nil, &params))
+		if assert.NotNil(t, params.SuspendTimeoutSeconds) {
+			assert.Equal(t, 900, *params.SuspendTimeoutSeconds)
+		}
+	})
+}
+
+func boolPtr(v bool) *bool { return &v }

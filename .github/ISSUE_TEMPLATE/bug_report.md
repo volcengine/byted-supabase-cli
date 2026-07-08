@@ -24,12 +24,10 @@ A clear and concise description of what you expected to happen.
 If applicable, add screenshots to help explain your problem.
 
 **System information**
-Rerun the failing command with `--create-ticket` flag.
- - Ticket ID: [e.g. ab1ac733e31e4f928a4d7c8402543712]
+Rerun the failing command with the `--debug` flag and attach the output.
  - Version of OS: [e.g. Ubuntu 22.04]
- - Version of CLI: [e.g. v1.60.0]
+ - Version of CLI: [output from `byted-supabase-cli --version`]
  - Version of Docker: [e.g. v25.0.3]
- - Versions of services: [output from `supabase services` command]
 
 **Additional context**
 If applicable, add any other context about the problem here.

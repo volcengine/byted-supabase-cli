@@ -8,9 +8,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/supabase/cli/pkg/config"
-	"github.com/supabase/cli/pkg/fetcher"
-	"github.com/supabase/cli/pkg/storage"
+	"github.com/volcengine/byted-supabase-cli/pkg/config"
+	"github.com/volcengine/byted-supabase-cli/pkg/fetcher"
+	"github.com/volcengine/byted-supabase-cli/pkg/storage"
 )
 
 func main() {

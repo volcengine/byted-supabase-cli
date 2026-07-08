@@ -7,7 +7,7 @@ import (
 
 	"github.com/h2non/gock"
 	"github.com/stretchr/testify/assert"
-	"github.com/supabase/cli/internal/testing/apitest"
+	"github.com/volcengine/byted-supabase-cli/internal/testing/apitest"
 )
 
 var planGateProjectJSON = map[string]interface{}{

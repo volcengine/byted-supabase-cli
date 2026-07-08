@@ -1,3 +1,14 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package rm
 
 import (
@@ -8,12 +19,13 @@ import (
 
 	"github.com/go-errors/errors"
 	"github.com/spf13/afero"
-	"github.com/supabase/cli/internal/storage/client"
-	"github.com/supabase/cli/internal/storage/cp"
-	"github.com/supabase/cli/internal/storage/ls"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/internal/utils/flags"
-	"github.com/supabase/cli/pkg/storage"
+	"github.com/volcengine/byted-supabase-cli/internal/storage/client"
+	"github.com/volcengine/byted-supabase-cli/internal/storage/cp"
+	"github.com/volcengine/byted-supabase-cli/internal/storage/ls"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
+	"github.com/volcengine/byted-supabase-cli/pkg/storage"
 )
 
 var (
@@ -28,6 +40,18 @@ type PrefixGroup struct {
 }
 
 func Run(ctx context.Context, paths []string, recursive bool, fsys afero.Fs) error {
+	return run(ctx, func() (storage.StorageAPI, error) {
+		return client.NewStorageAPI(ctx, flags.ProjectRef)
+	}, paths, recursive, fsys)
+}
+
+func RunVolcengine(ctx context.Context, api *volcengine.Client, workspaceID, branchID string, paths []string, recursive bool, fsys afero.Fs) error {
+	return run(ctx, func() (storage.StorageAPI, error) {
+		return client.NewVolcengineStorageAPI(ctx, api, workspaceID, branchID)
+	}, paths, recursive, fsys)
+}
+
+func run(ctx context.Context, newAPI func() (storage.StorageAPI, error), paths []string, recursive bool, fsys afero.Fs) error {
 	// Group paths by buckets
 	groups := map[string][]string{}
 	for _, objectPath := range paths {
@@ -45,7 +69,7 @@ func Run(ctx context.Context, paths []string, recursive bool, fsys afero.Fs) err
 		}
 		groups[bucket] = append(groups[bucket], prefix)
 	}
-	api, err := client.NewStorageAPI(ctx, flags.ProjectRef)
+	api, err := newAPI()
 	if err != nil {
 		return err
 	}

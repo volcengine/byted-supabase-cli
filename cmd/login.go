@@ -1,59 +1,89 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package cmd
 
 import (
 	"os"
 
-	"github.com/go-errors/errors"
-	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-	"github.com/supabase/cli/internal/login"
-	"github.com/supabase/cli/internal/utils"
-	"golang.org/x/term"
+	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 )
 
 var (
-	ErrMissingToken = errors.Errorf("Cannot use automatic login flow inside non-TTY environments. Please provide %s flag or set the %s environment variable.", utils.Aqua("--token"), utils.Aqua("SUPABASE_ACCESS_TOKEN"))
-)
-
-var (
-	params = login.RunParams{
-		// Skip the browser if we are inside non-TTY environment, which is the case for any CI.
-		OpenBrowser: term.IsTerminal(int(os.Stdin.Fd())),
-		Fsys:        afero.NewOsFs(),
-	}
+	loginProfile         string
+	loginRegion          string
+	loginRemote          bool
+	loginEndpointURL     string
+	loginSkipRegion      bool
+	loginCredentialFile  string
+	loginIsAgentPlan     bool
+	loginAgentPlanSeatID string
 
 	loginCmd = &cobra.Command{
 		GroupID: groupLocalDev,
 		Use:     "login",
-		Short:   "Authenticate using an access token",
+		Short:   "Authenticate with Volcengine",
+		Long: `Authenticate with Volcengine Console using OAuth 2.0 + PKCE.
+Opens a browser for authentication and caches temporary STS credentials locally.
+
+Supports three modes:
+  - Local (default): Opens browser on the same device
+  - Remote (--remote): For headless environments, displays URL and accepts code input
+  - Credential file (--credential-file): Imports an existing Console Login cache
+
+Region is only used as the default region for subsequent Volcengine API calls.
+Use --skip-region to authenticate without saving a profile region.`,
+		Example: `byted-supabase-cli login
+byted-supabase-cli login --profile dev --region cn-beijing
+byted-supabase-cli login --profile dev --region cn-beijing --remote
+byted-supabase-cli login --credential-file /path/to/cache.json --profile dev
+byted-supabase-cli login --skip-region`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if params.Token == "" {
-				params.Token = login.ParseAccessToken(os.Stdin)
+			agentPlanProfile, changed, err := resolveAgentPlanProfileUpdate(
+				cmd.Flags().Changed("is-agent-plan"),
+				loginIsAgentPlan,
+				cmd.Flags().Changed("agent-plan-seat-id"),
+				loginAgentPlanSeatID,
+			)
+			if err != nil {
+				return err
 			}
-			if params.Token == "" && !params.OpenBrowser {
-				return ErrMissingToken
+			var agentPlanProfilePtr *volcengine.SupabaseProfileConfig
+			if changed {
+				agentPlanProfilePtr = &agentPlanProfile
 			}
-			if cmd.Flags().Changed("no-browser") {
-				params.OpenBrowser = false
-			}
-			return login.Run(cmd.Context(), os.Stdout, params)
-		},
-		PostRunE: func(cmd *cobra.Command, args []string) error {
-			if prof := viper.GetString("PROFILE"); viper.IsSet("PROFILE") {
-				// Failure to save should block subsequent commands on CI
-				return utils.SaveProfileName(prof, afero.NewOsFs())
-			}
-			return nil
+			return volcengine.RunConsoleLogin(cmd.Context(), volcengine.ConsoleLoginParams{
+				Profile:         loginProfile,
+				Region:          loginRegion,
+				Remote:          loginRemote,
+				EndpointURL:     loginEndpointURL,
+				SkipRegion:      loginSkipRegion,
+				CredentialFile:  loginCredentialFile,
+				AgentPlanConfig: agentPlanProfilePtr,
+			}, os.Stdin, os.Stdout)
 		},
 	}
 )
 
 func init() {
 	loginFlags := loginCmd.Flags()
-	loginFlags.StringVar(&params.Token, "token", "", "Use provided token instead of automatic login flow")
-	loginFlags.StringVar(&params.TokenName, "name", "", "Name that will be used to store token in your settings")
-	loginFlags.Lookup("name").DefValue = "built-in token name generator"
-	loginFlags.Bool("no-browser", false, "Do not open browser automatically")
+	loginFlags.StringVarP(&loginProfile, "profile", "p", "default", "Volcengine profile name.")
+	loginFlags.StringVarP(&loginRegion, "region", "r", "", "Volcengine region. Prompts when omitted; empty input defaults to cn-beijing.")
+	loginFlags.BoolVar(&loginRemote, "remote", false, "Enable cross-device remote login mode.")
+	loginFlags.StringVar(&loginEndpointURL, "endpoint-url", volcengine.DefaultConsoleEndpoint, "Override signin service endpoint URL.")
+	loginFlags.BoolVar(&loginSkipRegion, "skip-region", false, "Authenticate without prompting for or saving a default Volcengine region.")
+	loginFlags.StringVar(&loginCredentialFile, "credential-file", "", "Import a Volcengine Console Login cache file into this profile.")
+	loginFlags.BoolVar(&loginIsAgentPlan, "is-agent-plan", false, "Use Agent Plan by default when creating workspaces with this profile.")
+	loginFlags.StringVar(&loginAgentPlanSeatID, "agent-plan-seat-id", "", "Default Agent Plan seat ID for enterprise edition.")
 	rootCmd.AddCommand(loginCmd)
 }

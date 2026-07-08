@@ -17,8 +17,8 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
-	"github.com/supabase/cli/internal/utils/agent"
-	"github.com/supabase/cli/pkg/migration"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/agent"
+	"github.com/volcengine/byted-supabase-cli/pkg/migration"
 )
 
 // Assigned using `-ldflags` https://stackoverflow.com/q/11354518

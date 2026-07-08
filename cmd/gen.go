@@ -1,3 +1,14 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package cmd
 
 import (
@@ -12,13 +23,14 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
-	"github.com/supabase/cli/internal/gen/bearerjwt"
-	"github.com/supabase/cli/internal/gen/signingkeys"
-	"github.com/supabase/cli/internal/gen/types"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/internal/utils/flags"
-	"github.com/supabase/cli/legacy/keys"
-	"github.com/supabase/cli/pkg/config"
+	"github.com/volcengine/byted-supabase-cli/internal/gen/bearerjwt"
+	"github.com/volcengine/byted-supabase-cli/internal/gen/signingkeys"
+	"github.com/volcengine/byted-supabase-cli/internal/gen/types"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
+	"github.com/volcengine/byted-supabase-cli/legacy/keys"
+	"github.com/volcengine/byted-supabase-cli/pkg/config"
 )
 
 var (
@@ -59,11 +71,10 @@ var (
 			types.LangTypescript,
 			types.LangGo,
 			types.LangSwift,
-			types.LangPython,
 		},
 		Value: types.LangTypescript,
 	}
-	queryTimeout       time.Duration
+	genTypesBranchID   string
 	postgrestV9Compat  bool
 	swiftAccessControl = utils.EnumFlag{
 		Allowed: []string{
@@ -77,31 +88,45 @@ var (
 		Use:   "types",
 		Short: "Generate types from Postgres schema",
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			if postgrestV9Compat && !cmd.Flags().Changed("db-url") {
-				return errors.New("--postgrest-v9-compat must used together with --db-url")
+			commandFlags := cmd.Flags()
+			linked := commandFlags.Changed("linked")
+			workspace := commandFlags.Changed("workspace-id") || commandFlags.Changed("project-ref") || commandFlags.Changed("project-id")
+			if linked && workspace {
+				return errors.New("--linked cannot be combined with --workspace-id, --project-ref, or --project-id")
 			}
 			// Legacy commands specify language using arg, eg. gen types typescript
 			if len(args) > 0 && args[0] != types.LangTypescript && !cmd.Flags().Changed("lang") {
 				return errors.New("use --lang flag to specify the typegen language")
 			}
-			return nil
+			if postgrestV9Compat && lang.Value != types.LangTypescript {
+				return errors.New("--postgrest-v9-compat is supported only with --lang typescript")
+			}
+			if commandFlags.Changed("swift-access-control") && lang.Value != types.LangSwift {
+				return errors.New("--swift-access-control is supported only with --lang swift")
+			}
+			return loadOrPromptVolcengineProjectRef(cmd.Context(), afero.NewOsFs(), "Which project do you want to generate types for?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			if flags.DbConfig.Host == "" {
-				// If no flag is specified, prompt for project id.
-				if err := flags.ParseProjectRef(ctx, afero.NewMemMapFs()); errors.Is(err, utils.ErrNotLinked) {
-					return errors.New("Must specify one of --local, --linked, --project-id, or --db-url")
-				} else if err != nil {
-					return err
-				}
+			if err := flags.LoadConfig(afero.NewOsFs()); err != nil {
+				return err
 			}
-			return types.Run(ctx, flags.ProjectRef, flags.DbConfig, lang.Value, schema, postgrestV9Compat, swiftAccessControl.Value, queryTimeout, afero.NewOsFs())
+			cfg, err := volcengine.LoadConfigFromEnv()
+			if err != nil {
+				return err
+			}
+			return types.RunVolcengine(ctx, volcengine.NewClient(cfg), types.VolcengineParams{
+				WorkspaceID:        flags.ProjectRef,
+				BranchID:           genTypesBranchID,
+				Lang:               lang.Value,
+				Schemas:            schema,
+				PostgrestV9Compat:  postgrestV9Compat,
+				SwiftAccessControl: swiftAccessControl.Value,
+			}, os.Stdout)
 		},
-		Example: `  supabase gen types --local
-  supabase gen types --linked --lang=go
-  supabase gen types --project-id abc-def-123 --schema public --schema private
-  supabase gen types --db-url 'postgresql://...' --schema public --schema auth`,
+		Example: `  byted-supabase-cli gen types --linked --lang typescript
+  byted-supabase-cli gen types --workspace-id workspace-id --lang go --schema public
+  byted-supabase-cli gen types --workspace-id workspace-id --lang swift --swift-access-control public`,
 	}
 
 	algorithm = utils.EnumFlag{
@@ -145,31 +170,36 @@ Supported algorithms:
 
 func init() {
 	typeFlags := genTypesCmd.Flags()
-	typeFlags.Bool("local", false, "Generate types from the local dev database.")
-	typeFlags.Bool("linked", false, "Generate types from the linked project.")
-	typeFlags.String("db-url", "", "Generate types from a database url.")
-	typeFlags.StringVar(&flags.ProjectRef, "project-id", "", "Generate types from a project ID.")
+	// Volcengine CLI does not support Supabase local stack type generation:
+	// typeFlags.Bool("local", false, "Generate types from the local dev database.")
+	typeFlags.Bool("linked", false, "Use the linked workspace when --workspace-id/--project-ref is omitted.")
+	// Original --db-url mode starts a local postgres-meta container; Volcengine
+	// type generation uses the deployed branch postgres-meta service instead:
+	// typeFlags.String("db-url", "", "Generate types from a database url.")
+	typeFlags.StringVar(&flags.ProjectRef, "workspace-id", "", "Workspace ID of the Volcengine Supabase project. Defaults to linked project if omitted.")
+	typeFlags.StringVar(&flags.ProjectRef, "project-ref", "", "Project ref of the Supabase project. Alias of --workspace-id. Defaults to linked project if omitted.")
+	typeFlags.StringVar(&flags.ProjectRef, "project-id", "", "Project ID of the Supabase project. Alias of --workspace-id for Volcengine.")
+	typeFlags.StringVar(&genTypesBranchID, "branch-id", "", "Branch ID of the Volcengine Supabase project. Defaults to the default branch.")
 	markFlagTelemetrySafe(typeFlags.Lookup("project-id"))
-	genTypesCmd.MarkFlagsMutuallyExclusive("local", "linked", "project-id", "db-url")
+	genTypesCmd.MarkFlagsMutuallyExclusive("linked", "workspace-id", "project-ref", "project-id")
 	typeFlags.Var(&lang, "lang", "Output language of the generated types.")
 	typeFlags.StringSliceVarP(&schema, "schema", "s", []string{}, "Comma separated list of schema to include.")
-	// Direct connection only flags
 	typeFlags.Var(&swiftAccessControl, "swift-access-control", "Access control for Swift generated types.")
-	genTypesCmd.MarkFlagsMutuallyExclusive("linked", "project-id", "swift-access-control")
 	typeFlags.BoolVar(&postgrestV9Compat, "postgrest-v9-compat", false, "Generate types compatible with PostgREST v9 and below.")
-	genTypesCmd.MarkFlagsMutuallyExclusive("linked", "project-id", "postgrest-v9-compat")
-	typeFlags.DurationVar(&queryTimeout, "query-timeout", time.Second*15, "Maximum timeout allowed for the database query.")
-	genTypesCmd.MarkFlagsMutuallyExclusive("linked", "project-id", "query-timeout")
+	// Original query timeout applies only to the local postgres-meta container path:
+	// typeFlags.DurationVar(&queryTimeout, "query-timeout", time.Second*15, "Maximum timeout allowed for the database query.")
 	genCmd.AddCommand(genTypesCmd)
 	keyFlags := genKeysCmd.Flags()
 	keyFlags.StringVar(&flags.ProjectRef, "project-ref", "", "Project ref of the Supabase project.")
 	markFlagTelemetrySafe(keyFlags.Lookup("project-ref"))
 	keyFlags.StringSliceVar(&override, "override-name", []string{}, "Override specific variable names.")
-	genCmd.AddCommand(genKeysCmd)
+	// Volcengine does not use the deprecated original preview branch key generator:
+	// genCmd.AddCommand(genKeysCmd)
 	signingKeyFlags := genSigningKeyCmd.Flags()
 	signingKeyFlags.Var(&algorithm, "algorithm", "Algorithm for signing key generation.")
 	signingKeyFlags.BoolVar(&appendKeys, "append", false, "Append new key to existing keys file instead of overwriting.")
-	genCmd.AddCommand(genSigningKeyCmd)
+	// Local signing keys are not keys trusted by a remote Volcengine Supabase project:
+	// genCmd.AddCommand(genSigningKeyCmd)
 	tokenFlags := genJWTCmd.Flags()
 	tokenFlags.StringVar(&claims.Role, "role", "", "Postgres role to use.")
 	cobra.CheckErr(genJWTCmd.MarkFlagRequired("role"))
@@ -178,7 +208,8 @@ func init() {
 	tokenFlags.TimeVar(&expiry, "exp", time.Time{}, []string{time.RFC3339}, "Expiry timestamp for this token.")
 	tokenFlags.DurationVar(&validFor, "valid-for", time.Minute*30, "Validity duration for this token.")
 	tokenFlags.StringVar(&payload, "payload", "{}", "Custom claims in JSON format.")
-	genCmd.AddCommand(genJWTCmd)
+	// Locally signed bearer tokens are not guaranteed to be trusted by a remote project:
+	// genCmd.AddCommand(genJWTCmd)
 	rootCmd.AddCommand(genCmd)
 }
 

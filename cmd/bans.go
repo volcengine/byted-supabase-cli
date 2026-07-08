@@ -1,3 +1,14 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package cmd
 
 import (
@@ -5,9 +16,9 @@ import (
 
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
-	"github.com/supabase/cli/internal/bans/get"
-	"github.com/supabase/cli/internal/bans/update"
-	"github.com/supabase/cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/internal/bans/get"
+	"github.com/volcengine/byted-supabase-cli/internal/bans/update"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 )
 
 var (
@@ -48,5 +59,8 @@ func init() {
 	bansRemoveCmd.Flags().StringSliceVar(&dbIpsToUnban, "db-unban-ip", []string{}, "IP to allow DB connections from.")
 	bansCmd.AddCommand(bansRemoveCmd)
 
-	rootCmd.AddCommand(bansCmd)
+	// Volcengine currently has no equivalent API for Supabase network bans
+	// (platform-generated temporary deny list). Keep the original implementation
+	// for reference, but do not register it in the Volcengine CLI.
+	// rootCmd.AddCommand(bansCmd)
 }

@@ -1,3 +1,14 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package mv
 
 import (
@@ -9,10 +20,11 @@ import (
 
 	"github.com/go-errors/errors"
 	"github.com/spf13/afero"
-	"github.com/supabase/cli/internal/storage/client"
-	"github.com/supabase/cli/internal/storage/ls"
-	"github.com/supabase/cli/internal/utils/flags"
-	"github.com/supabase/cli/pkg/storage"
+	"github.com/volcengine/byted-supabase-cli/internal/storage/client"
+	"github.com/volcengine/byted-supabase-cli/internal/storage/ls"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
+	"github.com/volcengine/byted-supabase-cli/pkg/storage"
 )
 
 var (
@@ -21,6 +33,18 @@ var (
 )
 
 func Run(ctx context.Context, src, dst string, recursive bool, fsys afero.Fs) error {
+	return run(ctx, func() (storage.StorageAPI, error) {
+		return client.NewStorageAPI(ctx, flags.ProjectRef)
+	}, src, dst, recursive, fsys)
+}
+
+func RunVolcengine(ctx context.Context, api *volcengine.Client, workspaceID, branchID, src, dst string, recursive bool, fsys afero.Fs) error {
+	return run(ctx, func() (storage.StorageAPI, error) {
+		return client.NewVolcengineStorageAPI(ctx, api, workspaceID, branchID)
+	}, src, dst, recursive, fsys)
+}
+
+func run(ctx context.Context, newAPI func() (storage.StorageAPI, error), src, dst string, recursive bool, fsys afero.Fs) error {
 	srcParsed, err := client.ParseStorageURL(src)
 	if err != nil {
 		return err
@@ -37,7 +61,7 @@ func Run(ctx context.Context, src, dst string, recursive bool, fsys afero.Fs) er
 	if srcBucket != dstBucket {
 		return errors.New(errUnsupportedMove)
 	}
-	api, err := client.NewStorageAPI(ctx, flags.ProjectRef)
+	api, err := newAPI()
 	if err != nil {
 		return err
 	}

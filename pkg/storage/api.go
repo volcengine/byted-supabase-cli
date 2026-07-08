@@ -1,6 +1,6 @@
 package storage
 
-import "github.com/supabase/cli/pkg/fetcher"
+import "github.com/volcengine/byted-supabase-cli/pkg/fetcher"
 
 type StorageAPI struct {
 	*fetcher.Fetcher

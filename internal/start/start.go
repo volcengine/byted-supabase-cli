@@ -34,15 +34,15 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/spf13/afero"
 
-	"github.com/supabase/cli/internal/db/start"
-	"github.com/supabase/cli/internal/functions/serve"
-	"github.com/supabase/cli/internal/seed/buckets"
-	"github.com/supabase/cli/internal/services"
-	"github.com/supabase/cli/internal/status"
-	phtelemetry "github.com/supabase/cli/internal/telemetry"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/internal/utils/flags"
-	"github.com/supabase/cli/pkg/config"
+	"github.com/volcengine/byted-supabase-cli/internal/db/start"
+	"github.com/volcengine/byted-supabase-cli/internal/functions/serve"
+	"github.com/volcengine/byted-supabase-cli/internal/seed/buckets"
+	"github.com/volcengine/byted-supabase-cli/internal/services"
+	"github.com/volcengine/byted-supabase-cli/internal/status"
+	phtelemetry "github.com/volcengine/byted-supabase-cli/internal/telemetry"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/pkg/config"
 )
 
 func Run(ctx context.Context, fsys afero.Fs, excludedContainers []string, ignoreHealthCheck bool) error {
@@ -517,7 +517,7 @@ vector --config /etc/vector/vector.yaml
 				Env: []string{
 					"KONG_DATABASE=off",
 					"KONG_DECLARATIVE_CONFIG=/home/kong/kong.yml",
-					"KONG_DNS_ORDER=LAST,A,CNAME", // https://github.com/supabase/cli/issues/14
+					"KONG_DNS_ORDER=LAST,A,CNAME", // https://github.com/volcengine/byted-supabase-cli/issues/14
 					"KONG_PLUGINS=request-transformer,cors",
 					fmt.Sprintf("KONG_PORT_MAPS=%d:8000", utils.Config.Api.Port),
 					// Need to increase the nginx buffers in kong to avoid it rejecting the rather

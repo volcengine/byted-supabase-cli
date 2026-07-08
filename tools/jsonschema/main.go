@@ -7,7 +7,7 @@ import (
 	"reflect"
 
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/supabase/cli/pkg/config"
+	"github.com/volcengine/byted-supabase-cli/pkg/config"
 )
 
 func main() {

@@ -1,3 +1,14 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package pull
 
 import (
@@ -16,16 +27,16 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
-	"github.com/supabase/cli/internal/db/declarative"
-	"github.com/supabase/cli/internal/db/diff"
-	"github.com/supabase/cli/internal/db/dump"
-	"github.com/supabase/cli/internal/db/start"
-	"github.com/supabase/cli/internal/migration/format"
-	"github.com/supabase/cli/internal/migration/list"
-	"github.com/supabase/cli/internal/migration/new"
-	"github.com/supabase/cli/internal/migration/repair"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/pkg/migration"
+	"github.com/volcengine/byted-supabase-cli/internal/db/declarative"
+	"github.com/volcengine/byted-supabase-cli/internal/db/diff"
+	"github.com/volcengine/byted-supabase-cli/internal/db/dump"
+	"github.com/volcengine/byted-supabase-cli/internal/db/start"
+	"github.com/volcengine/byted-supabase-cli/internal/migration/format"
+	"github.com/volcengine/byted-supabase-cli/internal/migration/list"
+	"github.com/volcengine/byted-supabase-cli/internal/migration/new"
+	"github.com/volcengine/byted-supabase-cli/internal/migration/repair"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/pkg/migration"
 )
 
 var (
@@ -70,6 +81,27 @@ func Run(ctx context.Context, schema []string, config pgconn.Config, name string
 	} else if shouldUpdate {
 		return repair.UpdateMigrationTable(ctx, conn, []string{timestamp}, repair.Applied, false, fsys)
 	}
+	return nil
+}
+
+// RunSchemaSnapshot generates a local migration file from the current remote
+// schema without reading or updating remote migration history.
+func RunSchemaSnapshot(ctx context.Context, schema []string, config pgconn.Config, name string, fsys afero.Fs) error {
+	timestamp := utils.GetCurrentTimestamp()
+	path := new.GetMigrationPath(timestamp, name)
+	fmt.Fprintln(os.Stderr, "Dumping schema from remote database...")
+	if err := utils.MkdirIfNotExistFS(fsys, filepath.Dir(path)); err != nil {
+		return err
+	}
+	f, err := fsys.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return errors.Errorf("failed to open dump file: %w", err)
+	}
+	defer f.Close()
+	if err := migration.DumpSchema(ctx, config, f, dump.DockerExec, migration.WithSchema(schema...)); err != nil {
+		return err
+	}
+	fmt.Fprintln(os.Stderr, "Schema written to "+utils.Bold(path))
 	return nil
 }
 

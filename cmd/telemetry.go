@@ -1,3 +1,14 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package cmd
 
 import (
@@ -7,7 +18,7 @@ import (
 
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
-	phtelemetry "github.com/supabase/cli/internal/telemetry"
+	phtelemetry "github.com/volcengine/byted-supabase-cli/internal/telemetry"
 )
 
 var telemetryCmd = &cobra.Command{
@@ -61,5 +72,5 @@ func init() {
 	telemetryCmd.AddCommand(telemetryEnableCmd)
 	telemetryCmd.AddCommand(telemetryDisableCmd)
 	telemetryCmd.AddCommand(telemetryStatusCmd)
-	rootCmd.AddCommand(telemetryCmd)
+	// rootCmd.AddCommand(telemetryCmd) // Volcengine has not integrated a CLI telemetry backend yet; not exposed at this stage
 }

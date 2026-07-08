@@ -1,4 +1,4 @@
-module github.com/supabase/cli/pkg
+module github.com/volcengine/byted-supabase-cli/pkg
 
 go 1.25.0
 

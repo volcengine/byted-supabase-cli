@@ -12,7 +12,7 @@ import (
 
 	"github.com/go-errors/errors"
 	"github.com/spf13/afero"
-	"github.com/supabase/cli/pkg/fetcher"
+	"github.com/volcengine/byted-supabase-cli/pkg/fetcher"
 )
 
 var DefaultClient = http.DefaultClient

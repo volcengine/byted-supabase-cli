@@ -1,6 +1,18 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package types
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net/http"
@@ -13,10 +25,11 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/supabase/cli/internal/testing/apitest"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/pkg/api"
-	"github.com/supabase/cli/pkg/pgtest"
+	"github.com/volcengine/byted-supabase-cli/internal/testing/apitest"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
+	"github.com/volcengine/byted-supabase-cli/pkg/api"
+	"github.com/volcengine/byted-supabase-cli/pkg/pgtest"
 )
 
 func TestGenLocalCommand(t *testing.T) {
@@ -189,4 +202,67 @@ func TestGenRemoteCommand(t *testing.T) {
 		// Validate api
 		assert.Empty(t, apitest.ListUnmatchedRequests())
 	})
+}
+
+func TestRunVolcengineHTTPTypescript(t *testing.T) {
+	defer gock.OffAll()
+	gock.New("https://branch.example.com:443").
+		Get("/postgres/generators/typescript").
+		MatchParam("included_schemas", "public,private").
+		MatchParam("detect_one_to_one_relationships", "true").
+		MatchHeader("apikey", "service-role-key").
+		MatchHeader("Authorization", "Bearer service-role-key").
+		Reply(http.StatusOK).
+		BodyString("export type Database = {}")
+
+	var buf bytes.Buffer
+	err := runVolcengineHTTPTypes(context.Background(), volcengine.PgMetaAccess{ServiceRoleKey: "service-role-key"}, "https://branch.example.com:443/postgres/generators/typescript", VolcengineParams{
+		Lang:    LangTypescript,
+		Schemas: []string{"public", "private"},
+	}, &buf)
+	require.NoError(t, err)
+	assert.Equal(t, "export type Database = {}\n", buf.String())
+	assert.Empty(t, apitest.ListUnmatchedRequests())
+}
+
+func TestRunVolcengineHTTPGo(t *testing.T) {
+	defer gock.OffAll()
+	gock.New("https://branch.example.com:443").
+		Get("/postgres/generators/go").
+		MatchParam("included_schemas", "public").
+		MatchHeader("apikey", "service-role-key").
+		MatchHeader("Authorization", "Bearer service-role-key").
+		Reply(http.StatusOK).
+		BodyString("package database")
+
+	var buf bytes.Buffer
+	err := runVolcengineHTTPTypes(context.Background(), volcengine.PgMetaAccess{ServiceRoleKey: "service-role-key"}, "https://branch.example.com:443/postgres/generators/go", VolcengineParams{
+		Lang:    LangGo,
+		Schemas: []string{"public"},
+	}, &buf)
+	require.NoError(t, err)
+	assert.Equal(t, "package database\n", buf.String())
+	assert.Empty(t, apitest.ListUnmatchedRequests())
+}
+
+func TestRunVolcengineHTTPSwift(t *testing.T) {
+	defer gock.OffAll()
+	gock.New("https://branch.example.com:443").
+		Get("/postgres/generators/swift").
+		MatchParam("included_schemas", "public").
+		MatchParam("access_control", SwiftPublicAccessControl).
+		MatchHeader("apikey", "service-role-key").
+		MatchHeader("Authorization", "Bearer service-role-key").
+		Reply(http.StatusOK).
+		BodyString("public struct Database {}")
+
+	var buf bytes.Buffer
+	err := runVolcengineHTTPTypes(context.Background(), volcengine.PgMetaAccess{ServiceRoleKey: "service-role-key"}, "https://branch.example.com:443/postgres/generators/swift", VolcengineParams{
+		Lang:               LangSwift,
+		Schemas:            []string{"public"},
+		SwiftAccessControl: SwiftPublicAccessControl,
+	}, &buf)
+	require.NoError(t, err)
+	assert.Equal(t, "public struct Database {}\n", buf.String())
+	assert.Empty(t, apitest.ListUnmatchedRequests())
 }

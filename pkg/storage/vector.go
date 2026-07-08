@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/supabase/cli/pkg/fetcher"
+	"github.com/volcengine/byted-supabase-cli/pkg/fetcher"
 )
 
 type VectorBucket struct {

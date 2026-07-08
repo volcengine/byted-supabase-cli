@@ -1,3 +1,14 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package query
 
 import (
@@ -13,9 +24,10 @@ import (
 	"github.com/jackc/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/supabase/cli/internal/testing/apitest"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/pkg/pgtest"
+	"github.com/volcengine/byted-supabase-cli/internal/testing/apitest"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
+	"github.com/volcengine/byted-supabase-cli/pkg/pgtest"
 )
 
 var dbConfig = pgconn.Config{
@@ -182,8 +194,9 @@ func TestResolveSQLFileTakesPrecedence(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, []byte("SELECT from_file"), 0600))
 
 	sql, err := ResolveSQL([]string{"SELECT from_arg"}, path, os.Stdin)
-	assert.NoError(t, err)
-	assert.Equal(t, "SELECT from_file", sql)
+	assert.Error(t, err)
+	assert.Empty(t, sql)
+	assert.ErrorContains(t, err, "cannot use SQL argument and --file together")
 }
 
 func TestResolveSQLFromStdin(t *testing.T) {
@@ -344,4 +357,63 @@ func TestRunLinkedAPIError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "400")
 	assert.Empty(t, apitest.ListUnmatchedRequests())
+}
+
+func TestRunVolcengineHTTPQuery(t *testing.T) {
+	defer gock.OffAll()
+	gock.New("https://branch.example.com:443").
+		Post("/postgres/query").
+		MatchHeader("apikey", "service-role-key").
+		MatchHeader("Authorization", "Bearer service-role-key").
+		JSON(map[string]interface{}{"query": "SELECT 1 as id", "read_only": false}).
+		Reply(http.StatusOK).
+		BodyString(`[{"id":1}]`)
+
+	var buf bytes.Buffer
+	err := runVolcengineHTTPQuery(context.Background(), "https://branch.example.com:443/postgres/query", "service-role-key", "SELECT 1 as id", "json", false, &buf)
+	require.NoError(t, err)
+	assert.JSONEq(t, `[{"id":1}]`, buf.String())
+	assert.Empty(t, apitest.ListUnmatchedRequests())
+}
+
+func TestRunVolcengineHTTPQueryRawReadOnly(t *testing.T) {
+	defer gock.OffAll()
+	gock.New("https://branch.example.com:443").
+		Post("/postgres/query").
+		MatchHeader("apikey", "service-role-key").
+		MatchHeader("Authorization", "Bearer service-role-key").
+		JSON(map[string]interface{}{"query": "SELECT advisor", "read_only": true}).
+		Reply(http.StatusOK).
+		BodyString(`[{"name":"unindexed_foreign_keys"}]`)
+
+	body, err := runVolcengineHTTPQueryRaw(context.Background(), "https://branch.example.com:443/postgres/query", "service-role-key", "SELECT advisor", true)
+	require.NoError(t, err)
+	assert.JSONEq(t, `[{"name":"unindexed_foreign_keys"}]`, string(body))
+	assert.Empty(t, apitest.ListUnmatchedRequests())
+}
+
+func TestResolveQueryURLUsesSharedPublicAddress(t *testing.T) {
+	got, err := resolveQueryURL([]volcengine.Endpoint{{
+		EndpointType: "Proxy",
+		Addresses: []volcengine.EndpointAddress{{
+			AddressType:   "Public",
+			AddressDomain: "branch.example.com",
+			AddressPort:   443,
+		}},
+	}})
+	require.NoError(t, err)
+	assert.Equal(t, "https://branch.example.com:443/postgres/query", got)
+}
+
+func TestResolveQueryURLFallsBackToDashboardPrivateAddress(t *testing.T) {
+	got, err := resolveQueryURL([]volcengine.Endpoint{{
+		EndpointType: "DashBoard",
+		Addresses: []volcengine.EndpointAddress{{
+			AddressType:   "Private",
+			AddressDomain: "branch.internal",
+			AddressPort:   80,
+		}},
+	}})
+	require.NoError(t, err)
+	assert.Equal(t, "http://branch.internal:80/postgres/query", got)
 }

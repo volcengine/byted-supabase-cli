@@ -1,3 +1,14 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package pull
 
 import (
@@ -13,12 +24,12 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/supabase/cli/internal/db/diff"
-	"github.com/supabase/cli/internal/testing/apitest"
-	"github.com/supabase/cli/internal/testing/fstest"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/pkg/migration"
-	"github.com/supabase/cli/pkg/pgtest"
+	"github.com/volcengine/byted-supabase-cli/internal/db/diff"
+	"github.com/volcengine/byted-supabase-cli/internal/testing/apitest"
+	"github.com/volcengine/byted-supabase-cli/internal/testing/fstest"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/pkg/migration"
+	"github.com/volcengine/byted-supabase-cli/pkg/pgtest"
 )
 
 var dbConfig = pgconn.Config{
@@ -57,6 +68,26 @@ func TestPullCommand(t *testing.T) {
 }
 
 func TestPullSchema(t *testing.T) {
+	t.Run("writes snapshot without migration history access", func(t *testing.T) {
+		fsys := afero.NewMemMapFs()
+		require.NoError(t, apitest.MockDocker(utils.Docker))
+		defer gock.OffAll()
+		apitest.MockDockerStart(utils.Docker, utils.GetRegistryImageUrl(utils.Config.Db.Image), "test-db")
+		require.NoError(t, apitest.MockDockerLogs(utils.Docker, "test-db", "create table public.test ();"))
+
+		err := RunSchemaSnapshot(context.Background(), []string{"public"}, dbConfig, "snapshot", fsys)
+
+		assert.NoError(t, err)
+		entries, err := afero.ReadDir(fsys, utils.MigrationsDir)
+		require.NoError(t, err)
+		require.Len(t, entries, 1)
+		assert.Contains(t, entries[0].Name(), "_snapshot.sql")
+		contents, err := afero.ReadFile(fsys, filepath.Join(utils.MigrationsDir, entries[0].Name()))
+		require.NoError(t, err)
+		assert.Equal(t, []byte("create table public.test ();"), contents)
+		assert.Empty(t, apitest.ListUnmatchedRequests())
+	})
+
 	t.Run("dumps remote schema", func(t *testing.T) {
 		errNetwork := errors.New("network error")
 		// Setup in-memory fs

@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-errors/errors"
-	"github.com/supabase/cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
 )
 
 func Run(ctx context.Context, projectRef string) error {

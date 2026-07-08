@@ -20,14 +20,14 @@ import (
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v4"
 	"github.com/spf13/afero"
-	"github.com/supabase/cli/internal/db/start"
-	"github.com/supabase/cli/internal/migration/apply"
-	"github.com/supabase/cli/internal/migration/down"
-	"github.com/supabase/cli/internal/migration/list"
-	"github.com/supabase/cli/internal/migration/repair"
-	"github.com/supabase/cli/internal/seed/buckets"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/pkg/migration"
+	"github.com/volcengine/byted-supabase-cli/internal/db/start"
+	"github.com/volcengine/byted-supabase-cli/internal/migration/apply"
+	"github.com/volcengine/byted-supabase-cli/internal/migration/down"
+	"github.com/volcengine/byted-supabase-cli/internal/migration/list"
+	"github.com/volcengine/byted-supabase-cli/internal/migration/repair"
+	"github.com/volcengine/byted-supabase-cli/internal/seed/buckets"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/pkg/migration"
 )
 
 func Run(ctx context.Context, version string, last uint, config pgconn.Config, fsys afero.Fs, options ...func(*pgx.ConnConfig)) error {

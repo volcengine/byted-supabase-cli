@@ -1,3 +1,14 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package cmd
 
 import (
@@ -9,15 +20,15 @@ import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/supabase/cli/internal/bootstrap"
-	"github.com/supabase/cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/bootstrap"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
 )
 
 var (
 	starter = bootstrap.StarterTemplate{
 		Name:        "scratch",
 		Description: "An empty project from scratch.",
-		Start:       "supabase start",
+		Start:       "byted-supabase-cli start",
 	}
 
 	bootstrapCmd = &cobra.Command{
@@ -65,7 +76,9 @@ func init() {
 	bootstrapFlags := bootstrapCmd.Flags()
 	bootstrapFlags.StringVarP(&dbPassword, "password", "p", "", "Password to your remote Postgres database.")
 	cobra.CheckErr(viper.BindPFlag("DB_PASSWORD", bootstrapFlags.Lookup("password")))
-	rootCmd.AddCommand(bootstrapCmd)
+	// Volcengine CLI does not support local-stack starter bootstrap in the first phase.
+	// Keep the command definition for future local developer workflow support.
+	// rootCmd.AddCommand(bootstrapCmd)
 }
 
 func promptStarterTemplate(ctx context.Context, templates []bootstrap.StarterTemplate) error {

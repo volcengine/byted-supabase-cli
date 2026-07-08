@@ -1,3 +1,14 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package new
 
 import (
@@ -7,22 +18,25 @@ import (
 	"html/template"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/go-errors/errors"
 	"github.com/spf13/afero"
-	"github.com/supabase/cli/internal/functions/deploy"
-	_init "github.com/supabase/cli/internal/init"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/internal/functions/deploy"
+	_init "github.com/volcengine/byted-supabase-cli/internal/init"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 )
 
 var (
 	//go:embed templates/index.ts
 	indexEmbed string
-	//go:embed templates/deno.json
-	denoEmbed string
-	//go:embed templates/.npmrc
-	npmrcEmbed string
+	//go:embed templates/app.py
+	pythonAppEmbed string
+	//go:embed templates/run.sh
+	pythonRunEmbed string
+	//go:embed templates/requirements.txt
+	pythonRequirementsEmbed string
 	//go:embed templates/config.toml
 	configEmbed string
 
@@ -31,13 +45,20 @@ var (
 )
 
 type indexConfig struct {
-	URL   string
-	Token string
+	URL        string
+	Token      string
+	Slug       string
+	Runtime    string
+	Entrypoint string
 }
 
-func Run(ctx context.Context, slug string, fsys afero.Fs) error {
+func Run(ctx context.Context, slug, runtime string, fsys afero.Fs) error {
 	// 1. Sanity checks.
 	if err := utils.ValidateFunctionSlug(slug); err != nil {
+		return err
+	}
+	runtime, err := normalizeNewRuntime(runtime)
+	if err != nil {
 		return err
 	}
 	// Check if this is the first function being created
@@ -56,18 +77,11 @@ func Run(ctx context.Context, slug string, fsys afero.Fs) error {
 	if err := flags.LoadConfig(fsys); err != nil {
 		fmt.Fprintln(utils.GetDebugLogger(), err)
 	}
-	if err := createEntrypointFile(slug, fsys); err != nil {
+	if err := createFunctionFiles(slug, runtime, fsys); err != nil {
 		return err
 	}
-	if err := appendConfigFile(slug, fsys); err != nil {
+	if err := appendConfigFile(slug, runtime, fsys); err != nil {
 		return err
-	}
-	// 3. Create optional files
-	if err := afero.WriteFile(fsys, filepath.Join(funcDir, "deno.json"), []byte(denoEmbed), 0644); err != nil {
-		return errors.Errorf("failed to create deno.json config: %w", err)
-	}
-	if err := afero.WriteFile(fsys, filepath.Join(funcDir, ".npmrc"), []byte(npmrcEmbed), 0644); err != nil {
-		return errors.Errorf("failed to create .npmrc config: %w", err)
 	}
 	fmt.Println("Created new Function at " + utils.Bold(funcDir))
 
@@ -79,7 +93,14 @@ func Run(ctx context.Context, slug string, fsys afero.Fs) error {
 	return nil
 }
 
-func createEntrypointFile(slug string, fsys afero.Fs) error {
+func createFunctionFiles(slug, runtime string, fsys afero.Fs) error {
+	if isPythonRuntime(runtime) {
+		return createPythonFunctionFiles(slug, fsys)
+	}
+	return createDenoEntrypointFile(slug, fsys)
+}
+
+func createDenoEntrypointFile(slug string, fsys afero.Fs) error {
 	entrypointPath := filepath.Join(utils.FunctionsDir, slug, "index.ts")
 	f, err := fsys.OpenFile(entrypointPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
@@ -95,7 +116,35 @@ func createEntrypointFile(slug string, fsys afero.Fs) error {
 	return nil
 }
 
-func appendConfigFile(slug string, fsys afero.Fs) error {
+func createPythonFunctionFiles(slug string, fsys afero.Fs) error {
+	funcDir := filepath.Join(utils.FunctionsDir, slug)
+	files := map[string]string{
+		"app.py":           pythonAppEmbed,
+		"run.sh":           pythonRunEmbed,
+		"requirements.txt": pythonRequirementsEmbed,
+	}
+	for name, content := range files {
+		perm := os.FileMode(0644)
+		if name == "run.sh" {
+			perm = 0755
+		}
+		filePath := filepath.Join(funcDir, name)
+		file, err := fsys.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
+		if err != nil {
+			return errors.Errorf("failed to create %s: %w", name, err)
+		}
+		if _, err := file.Write([]byte(content)); err != nil {
+			_ = file.Close()
+			return errors.Errorf("failed to write %s: %w", name, err)
+		}
+		if err := file.Close(); err != nil {
+			return errors.Errorf("failed to close %s: %w", name, err)
+		}
+	}
+	return nil
+}
+
+func appendConfigFile(slug, runtime string, fsys afero.Fs) error {
 	if _, exists := utils.Config.Functions[slug]; exists {
 		fmt.Fprintf(os.Stderr, "[functions.%s] is already declared in %s\n", slug, utils.Bold(utils.ConfigPath))
 		return nil
@@ -105,8 +154,38 @@ func appendConfigFile(slug string, fsys afero.Fs) error {
 		return errors.Errorf("failed to append config: %w", err)
 	}
 	defer f.Close()
-	if err := configTemplate.Option("missingkey=error").Execute(f, slug); err != nil {
+	if err := configTemplate.Option("missingkey=error").Execute(f, indexConfig{
+		Slug:       slug,
+		Runtime:    runtime,
+		Entrypoint: newEntrypoint(runtime),
+	}); err != nil {
 		return errors.Errorf("failed to append template: %w", err)
 	}
 	return nil
+}
+
+func normalizeNewRuntime(runtime string) (string, error) {
+	switch strings.TrimSpace(runtime) {
+	case "", deploy.RuntimeDeno, "node", "node20", deploy.RuntimeNativeNode20:
+		return deploy.RuntimeNativeNode20, nil
+	case "python3.9", "python39", deploy.RuntimePython39:
+		return deploy.RuntimePython39, nil
+	case "python3.10", "python310", "python", deploy.RuntimePython310:
+		return deploy.RuntimePython310, nil
+	case "python3.12", "python312", deploy.RuntimePython312:
+		return deploy.RuntimePython312, nil
+	default:
+		return "", errors.Errorf("unsupported runtime %q. Supported values: deno, native-node20/v1, python3.9, python3.10, python3.12", runtime)
+	}
+}
+
+func isPythonRuntime(runtime string) bool {
+	return strings.HasPrefix(runtime, "native-python")
+}
+
+func newEntrypoint(runtime string) string {
+	if isPythonRuntime(runtime) {
+		return "app.py"
+	}
+	return "index.ts"
 }

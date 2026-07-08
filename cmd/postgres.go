@@ -1,12 +1,23 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package cmd
 
 import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
-	"github.com/supabase/cli/internal/postgresConfig/delete"
-	"github.com/supabase/cli/internal/postgresConfig/get"
-	"github.com/supabase/cli/internal/postgresConfig/update"
-	"github.com/supabase/cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/internal/postgresConfig/delete"
+	"github.com/volcengine/byted-supabase-cli/internal/postgresConfig/get"
+	"github.com/volcengine/byted-supabase-cli/internal/postgresConfig/update"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 )
 
 var (
@@ -64,5 +75,5 @@ func init() {
 	deleteFlags.StringSliceVar(&postgresConfigKeysToDelete, "config", []string{}, "Config keys to delete (comma-separated)")
 	deleteFlags.BoolVar(&noRestart, "no-restart", false, "Do not restart the database after deleting config.")
 
-	rootCmd.AddCommand(postgresCmd)
+	// rootCmd.AddCommand(postgresCmd) // Volcengine has no equivalent Postgres config override API; code retained but not registered
 }

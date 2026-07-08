@@ -11,7 +11,7 @@ import (
 func getDenoAssetFileName() (string, error) {
 	// Simple runtime.GOARCH detection doesn't work if the CLI is
 	// running under Rosetta:
-	// https://github.com/supabase/cli/issues/1266. So as a workaround
+	// https://github.com/volcengine/byted-supabase-cli/issues/1266. So as a workaround
 	// we use Apple Silicon detection:
 	// https://www.yellowduck.be/posts/detecting-apple-silicon-via-go.
 	_, err := syscall.Sysctl("sysctl.proc_translated")

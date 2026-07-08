@@ -1,133 +1,78 @@
 name: Release
 
+# Publishes @byted-supabase/cli + its 6 per-platform packages to npm.
+#
+# Trigger: push a semver tag on the release branch.
+#     git tag v0.1.3 && git push origin v0.1.3
+#
+# All the real work — cross-compiling 6 targets, staging the packages, and
+# publishing platform-packages-before-main — lives in scripts/release.mjs, so a
+# release is reproducible locally (`npm run release:dry`). This workflow only
+# supplies the toolchain, the npm token, and the branch context that the
+# script's safety rails expect.
+
 on:
-  pull_request_review:
-    types:
-      - submitted
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and validate without publishing to npm"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_BRANCH: master
+
 jobs:
-  fast-forward:
-    if: |
-      github.event.pull_request.head.ref == 'develop' &&
-      github.event.pull_request.base.ref == 'main' &&
-      github.event.review.state == 'approved'
+  release:
+    name: Publish to npm
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-    outputs:
-      release_tag: ${{ steps.latest-release.outputs.tagName }}
+    environment: release
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      # fetch-depth: 0 brings the tags and origin/master that the rails below need.
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - run: |
-          git checkout main
-          git merge --ff-only "${{ github.event.pull_request.head.sha }}"
-          git push origin main
-      - id: latest-release
+
+      # scripts/release.mjs refuses to run off the release branch, but a tag push
+      # checks out a detached HEAD. Rather than weaken the rail, prove the claim it
+      # encodes — the tagged commit really is on the release branch — and then put
+      # HEAD back on that branch so the script sees the truth.
+      - name: Verify tag is on ${{ env.RELEASE_BRANCH }}
         run: |
-          latest=$(gh release list --limit 1 --json tagName --jq '.[].tagName')
-          gh release edit $latest --latest --prerelease=false
-          echo "tagName=$latest" >> $GITHUB_OUTPUT
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          set -euo pipefail
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" "origin/$RELEASE_BRANCH"; then
+            echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not an ancestor of origin/$RELEASE_BRANCH — refusing to release."
+            exit 1
+          fi
+          git checkout -B "$RELEASE_BRANCH" "$GITHUB_SHA"
 
-  commit:
-    name: Publish Brew and Scoop
-    needs:
-      - fast-forward
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+      - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
-      - id: app-token
-        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
-        with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: |
-            homebrew-tap
-            scoop-bucket
-      - run: go run tools/publish/main.go ${{ needs.fast-forward.outputs.release_tag }}
-        env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
 
-  compose:
-    name: Bump self-hosted versions
-    needs:
-      - fast-forward
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+      - uses: actions/setup-node@v4
         with:
-          go-version-file: go.mod
-          cache: true
-      - id: app-token
-        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
-        with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: |
-            supabase
-      - run: go run tools/selfhost/main.go
-        env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          node-version: 22
+          registry-url: https://registry.npmjs.org
 
-  changelog:
-    name: Publish changelog
-    needs:
-      - fast-forward
-      - commit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
-        with:
-          go-version-file: go.mod
-          cache: true
-      - id: app-token
-        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
-        with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: |
-            supabase
-            cli
-      - run: go run tools/changelog/main.go ${{ secrets.SLACK_CHANNEL }}
-        env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-          SLACK_TOKEN: ${{ secrets.SLACK_TOKEN }}
+      # Guards bin/cli.js and bin/install.js, the two files the main package ships.
+      - name: Test npm launcher
+        run: npm run test:npm
 
-  docs:
-    name: Publish reference docs
-    needs:
-      - fast-forward
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
-        with:
-          go-version-file: go.mod
-          cache: true
-      - id: app-token
-        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
-        with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: |
-            supabase
-      - run: go run docs/main.go ${{ needs.fast-forward.outputs.release_tag }} | go run tools/bumpdoc/main.go apps/docs/spec/cli_v1_commands.yaml
+      # release.mjs enforces the rest itself: clean tree, exactly one semver tag at
+      # HEAD, and no package already published at that version (append-only).
+      - name: Release
+        run: node scripts/release.mjs ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }}
         env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

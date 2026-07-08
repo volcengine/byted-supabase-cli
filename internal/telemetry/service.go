@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/spf13/afero"
-	"github.com/supabase/cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
 )
 
 type commandContextKey struct{}

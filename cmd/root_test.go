@@ -7,8 +7,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/supabase/cli/internal/telemetry"
-	"github.com/supabase/cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/telemetry"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
 )
 
 func clearTelemetryEnv(t *testing.T) {
@@ -70,6 +70,49 @@ func TestCommandName(t *testing.T) {
 
 	assert.Equal(t, "db push", commandName(child))
 	assert.Equal(t, "supabase", commandName(root))
+}
+
+func TestPagesCommandsAreVolcengineManagementCommands(t *testing.T) {
+	root := &cobra.Command{Use: "byted-supabase-cli"}
+	pages := &cobra.Command{Use: "pages"}
+	listProjects := &cobra.Command{Use: "list"}
+	envVars := &cobra.Command{Use: "env-vars"}
+	binding := &cobra.Command{Use: "binding"}
+	bind := &cobra.Command{Use: "bind"}
+	create := &cobra.Command{Use: "create"}
+	upload := &cobra.Command{Use: "upload"}
+	deploy := &cobra.Command{Use: "deploy"}
+	listDeployments := &cobra.Command{Use: "list"}
+	sync := &cobra.Command{Use: "sync"}
+	unbind := &cobra.Command{Use: "unbind"}
+	root.AddCommand(pages)
+	pages.AddCommand(listProjects)
+	pages.AddCommand(envVars)
+	pages.AddCommand(binding)
+	pages.AddCommand(bind)
+	pages.AddCommand(create)
+	pages.AddCommand(upload)
+	pages.AddCommand(deploy)
+	deploy.AddCommand(listDeployments)
+	pages.AddCommand(sync)
+	pages.AddCommand(unbind)
+
+	for _, cmd := range []*cobra.Command{listProjects, envVars, binding, bind, create, upload, deploy, listDeployments, sync, unbind} {
+		assert.True(t, isVolcengineManagementCommand(cmd), cmd.CommandPath())
+	}
+}
+
+func TestVolcengineRemoteDataPlaneCommands(t *testing.T) {
+	for _, cmd := range []*cobra.Command{
+		dbQueryCmd,
+		dbConnectionStringCmd,
+		dbDumpCmd,
+		dbPullCmd,
+		dbAdvisorsCmd,
+		genTypesCmd,
+	} {
+		assert.True(t, isVolcengineRemoteDataPlaneCommand(cmd), cmd.Name())
+	}
 }
 
 func TestTelemetryIsAgent(t *testing.T) {

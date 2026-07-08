@@ -14,10 +14,10 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	phtelemetry "github.com/supabase/cli/internal/telemetry"
-	"github.com/supabase/cli/internal/testing/apitest"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/internal/utils/credentials"
+	phtelemetry "github.com/volcengine/byted-supabase-cli/internal/telemetry"
+	"github.com/volcengine/byted-supabase-cli/internal/testing/apitest"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/credentials"
 	"github.com/zalando/go-keyring"
 )
 

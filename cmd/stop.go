@@ -3,7 +3,7 @@ package cmd
 import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
-	"github.com/supabase/cli/internal/stop"
+	"github.com/volcengine/byted-supabase-cli/internal/stop"
 )
 
 var (
@@ -29,5 +29,7 @@ func init() {
 	flags.BoolVar(&noBackup, "no-backup", false, "Deletes all data volumes after stopping.")
 	flags.BoolVar(&all, "all", false, "Stop all local Supabase instances from all projects across the machine.")
 	stopCmd.MarkFlagsMutuallyExclusive("project-id", "all")
-	rootCmd.AddCommand(stopCmd)
+	// Volcengine CLI does not support Supabase local stack in the current phase.
+	// Keep the original command registered code here for future local development support.
+	// rootCmd.AddCommand(stopCmd)
 }

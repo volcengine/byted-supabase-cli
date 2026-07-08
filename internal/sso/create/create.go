@@ -7,12 +7,12 @@ import (
 
 	"github.com/go-errors/errors"
 	"github.com/spf13/afero"
-	"github.com/supabase/cli/internal/sso/internal/render"
-	"github.com/supabase/cli/internal/sso/internal/saml"
-	"github.com/supabase/cli/internal/telemetry"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/pkg/api"
-	"github.com/supabase/cli/pkg/cast"
+	"github.com/volcengine/byted-supabase-cli/internal/sso/internal/render"
+	"github.com/volcengine/byted-supabase-cli/internal/sso/internal/saml"
+	"github.com/volcengine/byted-supabase-cli/internal/telemetry"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/pkg/api"
+	"github.com/volcengine/byted-supabase-cli/pkg/cast"
 )
 
 var Fs = afero.NewOsFs()

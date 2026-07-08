@@ -1,3 +1,14 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package query
 
 import (
@@ -17,8 +28,8 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/olekukonko/tablewriter"
 	"github.com/olekukonko/tablewriter/tw"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/pkg/api"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/pkg/api"
 	"golang.org/x/term"
 )
 
@@ -259,6 +270,9 @@ func writeCSV(w io.Writer, cols []string, data [][]interface{}) error {
 
 func ResolveSQL(args []string, filePath string, stdin *os.File) (string, error) {
 	if filePath != "" {
+		if len(args) > 0 {
+			return "", errors.New("cannot use SQL argument and --file together. Use exactly one SQL source.")
+		}
 		data, err := os.ReadFile(filePath)
 		if err != nil {
 			return "", errors.Errorf("failed to read SQL file: %w", err)

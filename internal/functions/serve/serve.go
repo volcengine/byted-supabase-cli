@@ -18,10 +18,10 @@ import (
 	"github.com/go-errors/errors"
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
-	"github.com/supabase/cli/internal/functions/deploy"
-	"github.com/supabase/cli/internal/secrets/set"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/internal/functions/deploy"
+	"github.com/volcengine/byted-supabase-cli/internal/secrets/set"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 )
 
 type InspectMode string

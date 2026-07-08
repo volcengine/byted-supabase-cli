@@ -1,3 +1,14 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package utils
 
 import (
@@ -14,9 +25,9 @@ import (
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	"github.com/spf13/viper"
-	"github.com/supabase/cli/internal/debug"
-	"github.com/supabase/cli/pkg/api"
-	"github.com/supabase/cli/pkg/pgxv5"
+	"github.com/volcengine/byted-supabase-cli/internal/debug"
+	"github.com/volcengine/byted-supabase-cli/pkg/api"
+	"github.com/volcengine/byted-supabase-cli/pkg/pgxv5"
 	"golang.org/x/net/publicsuffix"
 )
 
@@ -151,7 +162,7 @@ func ConnectLocalPostgres(ctx context.Context, config pgconn.Config, options ...
 
 func ConnectByUrl(ctx context.Context, url string, options ...func(*pgx.ConnConfig)) (*pgx.Conn, error) {
 	if viper.GetBool("DEBUG") {
-		options = append(options, debug.SetupPGX)
+		options = append(options, setupDebugPGX)
 	}
 	// No fallback from TLS to unsecure connection
 	options = append(options, func(cc *pgx.ConnConfig) {
@@ -169,6 +180,14 @@ func ConnectByUrl(ctx context.Context, url string, options ...func(*pgx.ConnConf
 	conn, err := pgxv5.Connect(ctx, url, options...)
 	SetConnectSuggestion(err)
 	return conn, err
+}
+
+func setupDebugPGX(config *pgx.ConnConfig) {
+	if config.TLSConfig != nil {
+		fmt.Fprintln(GetDebugLogger(), "Postgres protocol debug logging is unavailable for TLS connections; preserving TLS.")
+		return
+	}
+	debug.SetupPGX(config)
 }
 
 const SuggestEnvVar = "Connect to your database by setting the env var correctly: SUPABASE_DB_PASSWORD"

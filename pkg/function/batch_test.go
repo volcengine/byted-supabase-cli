@@ -10,9 +10,9 @@ import (
 	"github.com/h2non/gock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/supabase/cli/pkg/api"
-	"github.com/supabase/cli/pkg/cast"
-	"github.com/supabase/cli/pkg/config"
+	"github.com/volcengine/byted-supabase-cli/pkg/api"
+	"github.com/volcengine/byted-supabase-cli/pkg/cast"
+	"github.com/volcengine/byted-supabase-cli/pkg/config"
 )
 
 type MockBundler struct {

@@ -1,12 +1,23 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package cmd
 
 import (
 	"github.com/go-errors/errors"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
-	"github.com/supabase/cli/internal/ssl_enforcement/get"
-	"github.com/supabase/cli/internal/ssl_enforcement/update"
-	"github.com/supabase/cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/internal/ssl_enforcement/get"
+	"github.com/volcengine/byted-supabase-cli/internal/ssl_enforcement/update"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 )
 
 var (
@@ -47,5 +58,5 @@ func init() {
 	sslEnforcementCmd.AddCommand(sslEnforcementUpdateCmd)
 	sslEnforcementCmd.AddCommand(sslEnforcementGetCmd)
 
-	rootCmd.AddCommand(sslEnforcementCmd)
+	// rootCmd.AddCommand(sslEnforcementCmd) // Volcengine has no equivalent SSL enforcement policy API; code retained but not registered
 }

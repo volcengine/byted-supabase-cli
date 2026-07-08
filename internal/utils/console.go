@@ -11,7 +11,7 @@ import (
 
 	"github.com/go-errors/errors"
 	"github.com/spf13/viper"
-	"github.com/supabase/cli/pkg/cast"
+	"github.com/volcengine/byted-supabase-cli/pkg/cast"
 	"golang.org/x/term"
 )
 
@@ -70,6 +70,9 @@ func (c *Console) PromptYesNo(ctx context.Context, label string, def bool) (bool
 	if viper.GetBool("YES") {
 		fmt.Fprintln(os.Stderr, labelWithChoice+"y")
 		return true, nil
+	}
+	if !c.IsTTY || IsAgentMode() {
+		return false, errors.New("confirmation required in non-interactive or agent mode; re-run with --yes to confirm.")
 	}
 	// Any error will be handled as default value
 	input, err := c.PromptText(ctx, labelWithChoice)

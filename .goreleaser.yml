@@ -1,12 +1,12 @@
 version: 2
-project_name: supabase
+project_name: byted-supabase-cli
 builds:
-  - id: supabase
-    binary: supabase
+  - id: byted-supabase-cli
+    binary: byted-supabase-cli
     flags:
       - -trimpath
     ldflags:
-      - -s -w -X github.com/supabase/cli/internal/utils.Version={{.Version}} -X github.com/supabase/cli/internal/utils.SentryDsn={{ .Env.SENTRY_DSN }} -X github.com/supabase/cli/internal/utils.PostHogAPIKey={{ .Env.POSTHOG_API_KEY }} -X github.com/supabase/cli/internal/utils.PostHogEndpoint={{ .Env.POSTHOG_ENDPOINT }}
+      - -s -w -X github.com/volcengine/byted-supabase-cli/internal/utils.Version={{.Version}}
     env:
       - CGO_ENABLED=0
     targets:

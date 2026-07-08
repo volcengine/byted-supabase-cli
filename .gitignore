@@ -1,6 +1,9 @@
 # General
 .DS_Store
 .env
+# Local credentials for live integration tests (never commit AK/SK)
+.env.local
+.env.*.local
 
 # Binaries for programs and plugins
 *.exe
@@ -9,6 +12,8 @@
 *.so
 *.dylib
 /cli
+/byted-supabase-cli
+/byted-supabase-cli.exe
 
 # Test binary, built with `go test -c`
 *.test
@@ -18,6 +23,7 @@
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+/vendor
 
 # IDE
 /.vscode
@@ -26,6 +32,18 @@
 # NPM
 node_modules
 package-lock.json
+# 杂散本机二进制(B 方案下启动器从 node_modules 解析,bin/ 不该出现二进制;留作误提交保险)
+/bin/byted-supabase-cli
+/bin/byted-supabase-cli.exe
+
+# `make build-cli` output + scripts/release.mjs per-platform package staging (dist/npm)
+/dist
 
 # Initialized by cli for local testing
 /supabase
+
+AGENTS.md
+
+CLAUDE.md
+
+.docs/

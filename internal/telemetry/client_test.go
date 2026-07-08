@@ -7,7 +7,7 @@ import (
 	"github.com/posthog/posthog-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/supabase/cli/internal/debug"
+	"github.com/volcengine/byted-supabase-cli/internal/debug"
 )
 
 type fakeQueue struct {

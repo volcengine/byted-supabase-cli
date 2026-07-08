@@ -1,3 +1,14 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package config
 
 import (
@@ -635,6 +646,20 @@ func TestGlobFiles(t *testing.T) {
 }
 
 func TestLoadFunctionImportMap(t *testing.T) {
+	t.Run("loads runtime from function config", func(t *testing.T) {
+		config := NewConfig()
+		fsys := fs.MapFS{
+			"supabase/config.toml": &fs.MapFile{Data: []byte(`
+			project_id = "bvikqvbczudanvggcord"
+			[functions.hello]
+			runtime = "native-python3.9/v1"
+			`)},
+			"supabase/functions/hello/app.py": &fs.MapFile{},
+		}
+		assert.NoError(t, config.Load("", fsys))
+		assert.Equal(t, "native-python3.9/v1", config.Functions["hello"].Runtime)
+	})
+
 	t.Run("uses deno.json as import map when present", func(t *testing.T) {
 		config := NewConfig()
 		fsys := fs.MapFS{

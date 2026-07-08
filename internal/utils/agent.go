@@ -1,6 +1,6 @@
 package utils
 
-import "github.com/supabase/cli/internal/utils/agent"
+import "github.com/volcengine/byted-supabase-cli/internal/utils/agent"
 
 // AgentMode is a global flag for overriding agent detection.
 // Allowed values: "auto" (default), "yes", "no".

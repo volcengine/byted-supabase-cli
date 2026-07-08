@@ -1,3 +1,14 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package cmd
 
 import (
@@ -13,14 +24,14 @@ import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/supabase/cli/internal/db/declarative"
-	"github.com/supabase/cli/internal/db/reset"
-	"github.com/supabase/cli/internal/db/start"
-	"github.com/supabase/cli/internal/migration/new"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/internal/utils/flags"
-	"github.com/supabase/cli/pkg/config"
-	"github.com/supabase/cli/pkg/migration"
+	"github.com/volcengine/byted-supabase-cli/internal/db/declarative"
+	"github.com/volcengine/byted-supabase-cli/internal/db/reset"
+	"github.com/volcengine/byted-supabase-cli/internal/db/start"
+	"github.com/volcengine/byted-supabase-cli/internal/migration/new"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/pkg/config"
+	"github.com/volcengine/byted-supabase-cli/pkg/migration"
 	"golang.org/x/term"
 )
 
@@ -35,7 +46,7 @@ var (
 	declarativeFile      string
 	declarativeName      string
 
-	// dbSchemaCmd groups schema-related subcommands under `supabase db schema`.
+	// dbSchemaCmd groups schema-related subcommands under `byted-supabase-cli db schema`.
 	dbSchemaCmd = &cobra.Command{
 		Use:   "schema",
 		Short: "Manage database schema",
@@ -90,7 +101,7 @@ var (
 		Short: "Generate declarative schema from a database",
 		RunE:  runDeclarativeGenerate,
 		PostRun: func(cmd *cobra.Command, args []string) {
-			fmt.Println("Finished " + utils.Aqua("supabase db schema declarative generate") + ".")
+			fmt.Println("Finished " + utils.Aqua("byted-supabase-cli db schema declarative generate") + ".")
 		},
 	}
 )
@@ -287,14 +298,14 @@ func runDeclarativeSync(cmd *cobra.Command, args []string) error {
 	// Step 1: Check if declarative dir has files
 	if !hasDeclarativeFiles(fsys) {
 		if !isTTY() && !viper.GetBool("YES") {
-			return fmt.Errorf("no declarative schema found. Run %s first", utils.Aqua("supabase db schema declarative generate"))
+			return fmt.Errorf("no declarative schema found. Run %s first", utils.Aqua("byted-supabase-cli db schema declarative generate"))
 		}
 		ok, err := console.PromptYesNo(ctx, "No declarative schema found. Generate a new one ?", true)
 		if err != nil {
 			return err
 		}
 		if !ok {
-			return fmt.Errorf("no declarative schema found. Run %s first", utils.Aqua("supabase db schema declarative generate"))
+			return fmt.Errorf("no declarative schema found. Run %s first", utils.Aqua("byted-supabase-cli db schema declarative generate"))
 		}
 		// Run smart generate flow
 		if err := runDeclarativeGenerate(cmd, args); err != nil {
@@ -476,5 +487,8 @@ func init() {
 	dbDeclarativeCmd.AddCommand(dbDeclarativeSyncCmd)
 	dbDeclarativeCmd.AddCommand(dbDeclarativeGenerateCmd)
 	dbSchemaCmd.AddCommand(dbDeclarativeCmd)
-	dbCmd.AddCommand(dbSchemaCmd)
+	// Declarative schema workflows depend on pg-delta, local/shadow database
+	// setup, and migration state. Volcengine CLI does not register this command
+	// group until those workflows are explicitly supported.
+	// dbCmd.AddCommand(dbSchemaCmd)
 }

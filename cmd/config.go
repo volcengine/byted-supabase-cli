@@ -3,8 +3,8 @@ package cmd
 import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
-	"github.com/supabase/cli/internal/config/push"
-	"github.com/supabase/cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/internal/config/push"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 )
 
 var (
@@ -26,5 +26,7 @@ var (
 func init() {
 	configCmd.PersistentFlags().StringVar(&flags.ProjectRef, "project-ref", "", "Project ref of the Supabase project.")
 	configCmd.AddCommand(configPushCmd)
-	rootCmd.AddCommand(configCmd)
+	// Volcengine: config push syncs local config.toml to Supabase Management API.
+	// Keep the original command code, but do not register it in the first phase.
+	// rootCmd.AddCommand(configCmd)
 }

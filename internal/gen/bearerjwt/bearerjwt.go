@@ -11,9 +11,9 @@ import (
 	"github.com/go-errors/errors"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/spf13/afero"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/internal/utils/flags"
-	"github.com/supabase/cli/pkg/config"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/pkg/config"
 )
 
 func Run(ctx context.Context, claims jwt.Claims, w io.Writer, fsys afero.Fs) error {

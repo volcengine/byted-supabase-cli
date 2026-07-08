@@ -14,7 +14,7 @@ import (
 
 	"github.com/andybalholm/brotli"
 	"github.com/go-errors/errors"
-	"github.com/supabase/cli/pkg/cast"
+	"github.com/volcengine/byted-supabase-cli/pkg/cast"
 )
 
 type nativeBundler struct {

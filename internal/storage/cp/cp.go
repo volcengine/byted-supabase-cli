@@ -1,3 +1,14 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package cp
 
 import (
@@ -12,17 +23,30 @@ import (
 
 	"github.com/go-errors/errors"
 	"github.com/spf13/afero"
-	"github.com/supabase/cli/internal/storage/client"
-	"github.com/supabase/cli/internal/storage/ls"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/internal/utils/flags"
-	"github.com/supabase/cli/pkg/queue"
-	"github.com/supabase/cli/pkg/storage"
+	"github.com/volcengine/byted-supabase-cli/internal/storage/client"
+	"github.com/volcengine/byted-supabase-cli/internal/storage/ls"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
+	"github.com/volcengine/byted-supabase-cli/pkg/queue"
+	"github.com/volcengine/byted-supabase-cli/pkg/storage"
 )
 
 var errUnsupportedOperation = errors.New("Unsupported operation")
 
 func Run(ctx context.Context, src, dst string, recursive bool, maxJobs uint, fsys afero.Fs, opts ...func(*storage.FileOptions)) error {
+	return run(ctx, func() (storage.StorageAPI, error) {
+		return client.NewStorageAPI(ctx, flags.ProjectRef)
+	}, src, dst, recursive, maxJobs, fsys, opts...)
+}
+
+func RunVolcengine(ctx context.Context, api *volcengine.Client, workspaceID, branchID, src, dst string, recursive bool, maxJobs uint, fsys afero.Fs, opts ...func(*storage.FileOptions)) error {
+	return run(ctx, func() (storage.StorageAPI, error) {
+		return client.NewVolcengineStorageAPI(ctx, api, workspaceID, branchID)
+	}, src, dst, recursive, maxJobs, fsys, opts...)
+}
+
+func run(ctx context.Context, newAPI func() (storage.StorageAPI, error), src, dst string, recursive bool, maxJobs uint, fsys afero.Fs, opts ...func(*storage.FileOptions)) error {
 	srcParsed, err := url.Parse(src)
 	if err != nil {
 		return errors.Errorf("failed to parse src url: %w", err)
@@ -31,7 +55,7 @@ func Run(ctx context.Context, src, dst string, recursive bool, maxJobs uint, fsy
 	if err != nil {
 		return errors.Errorf("failed to parse dst url: %w", err)
 	}
-	api, err := client.NewStorageAPI(ctx, flags.ProjectRef)
+	api, err := newAPI()
 	if err != nil {
 		return err
 	}

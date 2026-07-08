@@ -1,3 +1,14 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package advisors
 
 import (
@@ -12,8 +23,10 @@ import (
 	"github.com/go-errors/errors"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/pkg/api"
+	"github.com/volcengine/byted-supabase-cli/internal/db/query"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
+	"github.com/volcengine/byted-supabase-cli/pkg/api"
 )
 
 var (
@@ -74,6 +87,32 @@ func RunLocal(ctx context.Context, advisorType string, level string, failOn stri
 
 	filtered := filterLints(lints, advisorType, level)
 	return outputAndCheck(filtered, failOn, os.Stdout)
+}
+
+func RunVolcengine(ctx context.Context, client *volcengine.Client, workspaceID, branchID, advisorType, level, failOn string) error {
+	filtered, err := GetVolcengineLints(ctx, client, workspaceID, branchID, advisorType, level)
+	if err != nil {
+		return err
+	}
+	return outputAndCheck(filtered, failOn, os.Stdout)
+}
+
+func GetVolcengineLints(ctx context.Context, client *volcengine.Client, workspaceID, branchID, advisorType, level string) ([]Lint, error) {
+	_, querySQL := splitLintsSQL()
+	body, err := query.ExecuteVolcengine(ctx, client, query.VolcengineParams{
+		WorkspaceID: workspaceID,
+		BranchID:    branchID,
+		SQL:         querySQL,
+		ReadOnly:    true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	var lints []Lint
+	if err := json.Unmarshal(body, &lints); err != nil {
+		return nil, errors.Errorf("failed to parse advisor query response: %w", err)
+	}
+	return filterLints(lints, advisorType, level), nil
 }
 
 func RunLinked(ctx context.Context, advisorType string, level string, failOn string, projectRef string) error {

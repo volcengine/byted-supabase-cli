@@ -10,8 +10,8 @@ import (
 	"github.com/jackc/pgerrcode"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
-	"github.com/supabase/cli/pkg/parser"
-	"github.com/supabase/cli/pkg/pgtest"
+	"github.com/volcengine/byted-supabase-cli/pkg/parser"
+	"github.com/volcengine/byted-supabase-cli/pkg/pgtest"
 )
 
 func TestMigrationFile(t *testing.T) {

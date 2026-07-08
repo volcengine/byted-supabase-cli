@@ -1,3 +1,14 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package config
 
 import (
@@ -30,8 +41,8 @@ import (
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
-	"github.com/supabase/cli/pkg/cast"
-	"github.com/supabase/cli/pkg/fetcher"
+	"github.com/volcengine/byted-supabase-cli/pkg/cast"
+	"github.com/volcengine/byted-supabase-cli/pkg/fetcher"
 	"golang.org/x/mod/semver"
 )
 
@@ -202,6 +213,7 @@ type (
 	function struct {
 		Enabled     bool   `toml:"enabled" json:"enabled"`
 		VerifyJWT   bool   `toml:"verify_jwt" json:"verify_jwt"`
+		Runtime     string `toml:"runtime" json:"runtime"`
 		ImportMap   string `toml:"import_map" json:"import_map"`
 		Entrypoint  string `toml:"entrypoint" json:"entrypoint"`
 		StaticFiles Glob   `toml:"static_files" json:"static_files"`

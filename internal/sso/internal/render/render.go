@@ -7,8 +7,8 @@ import (
 
 	"github.com/go-errors/errors"
 	"github.com/go-xmlfmt/xmlfmt"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/pkg/api"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/pkg/api"
 )
 
 func formatProtocol(provider api.GetProviderResponse) string {

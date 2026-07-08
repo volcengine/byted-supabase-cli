@@ -14,8 +14,8 @@ import (
 	"github.com/jackc/pgconn"
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
-	"github.com/supabase/cli/internal/utils"
-	pkgconfig "github.com/supabase/cli/pkg/config"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	pkgconfig "github.com/volcengine/byted-supabase-cli/pkg/config"
 )
 
 //go:embed templates/pgdelta_declarative_apply.ts

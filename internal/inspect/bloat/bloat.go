@@ -9,9 +9,9 @@ import (
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	"github.com/spf13/afero"
-	"github.com/supabase/cli/internal/db/reset"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/pkg/pgxv5"
+	"github.com/volcengine/byted-supabase-cli/internal/db/reset"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/pkg/pgxv5"
 )
 
 //go:embed bloat.sql

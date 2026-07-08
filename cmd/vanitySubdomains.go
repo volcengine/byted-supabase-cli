@@ -1,13 +1,24 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package cmd
 
 import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
-	"github.com/supabase/cli/internal/utils/flags"
-	"github.com/supabase/cli/internal/vanity_subdomains/activate"
-	"github.com/supabase/cli/internal/vanity_subdomains/check"
-	"github.com/supabase/cli/internal/vanity_subdomains/delete"
-	"github.com/supabase/cli/internal/vanity_subdomains/get"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/internal/vanity_subdomains/activate"
+	"github.com/volcengine/byted-supabase-cli/internal/vanity_subdomains/check"
+	"github.com/volcengine/byted-supabase-cli/internal/vanity_subdomains/delete"
+	"github.com/volcengine/byted-supabase-cli/internal/vanity_subdomains/get"
 )
 
 var (
@@ -71,5 +82,5 @@ func init() {
 	vanityCmd.AddCommand(vanityCheckCmd)
 	vanityCmd.AddCommand(vanityActivateCmd)
 	vanityCmd.AddCommand(vanityDeleteCmd)
-	rootCmd.AddCommand(vanityCmd)
+	// rootCmd.AddCommand(vanityCmd) // Volcengine has no equivalent vanity subdomain capability; code retained but not registered
 }

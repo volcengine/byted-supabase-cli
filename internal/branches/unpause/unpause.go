@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	"github.com/go-errors/errors"
-	"github.com/supabase/cli/internal/branches/pause"
-	"github.com/supabase/cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/branches/pause"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
 )
 
 func Run(ctx context.Context, branchId string) error {

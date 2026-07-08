@@ -9,8 +9,8 @@ import (
 
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
-	"github.com/supabase/cli/internal/start"
-	"github.com/supabase/cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/start"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
 )
 
 func validateExcludedContainers(excludedContainers []string) {
@@ -59,5 +59,7 @@ func init() {
 	flags.BoolVar(&ignoreHealthCheck, "ignore-health-check", false, "Ignore unhealthy services and exit 0")
 	flags.BoolVar(&preview, "preview", false, "Connect to feature preview branch")
 	cobra.CheckErr(flags.MarkHidden("preview"))
-	rootCmd.AddCommand(startCmd)
+	// Volcengine CLI does not support Supabase local stack in the current phase.
+	// Keep the original command registered code here for future local development support.
+	// rootCmd.AddCommand(startCmd)
 }

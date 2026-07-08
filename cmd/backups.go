@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/supabase/cli/internal/backups/list"
-	"github.com/supabase/cli/internal/backups/restore"
-	"github.com/supabase/cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/internal/backups/list"
+	"github.com/volcengine/byted-supabase-cli/internal/backups/restore"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 )
 
 var (
@@ -42,5 +42,7 @@ func init() {
 	restoreFlags := backupRestoreCmd.Flags()
 	restoreFlags.Int64VarP(&timestamp, "timestamp", "t", 0, "The recovery time target in seconds since epoch.")
 	backupsCmd.AddCommand(backupRestoreCmd)
-	rootCmd.AddCommand(backupsCmd)
+	// Volcengine restore is branch-based instead of project backup-based.
+	// Keep the original command registered code here; expose restore capabilities under branches later.
+	// rootCmd.AddCommand(backupsCmd)
 }

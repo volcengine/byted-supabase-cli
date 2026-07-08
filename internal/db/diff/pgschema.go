@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	pgschema "github.com/stripe/pg-schema-diff/pkg/diff"
-	"github.com/supabase/cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
 )
 
 func DiffPgSchema(ctx context.Context, source, target pgconn.Config, schema []string, _ ...func(*pgx.ConnConfig)) (string, error) {

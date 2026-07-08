@@ -1,3 +1,14 @@
+// Copyright (c) 2021 Supabase, Inc. and contributors
+// Copyright (c) 2026 ByteDance Ltd. and/or its affiliates
+// SPDX-License-Identifier: MIT
+//
+// This file has been modified by ByteDance Ltd. and/or its affiliates.
+//
+// Original file was released under MIT License, with the full license text
+// available at https://github.com/supabase/cli/blob/main/LICENSE.
+//
+// This modified file is released under the same license.
+
 package cmd
 
 import (
@@ -7,15 +18,15 @@ import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/supabase/cli/internal/migration/down"
-	"github.com/supabase/cli/internal/migration/fetch"
-	"github.com/supabase/cli/internal/migration/list"
-	"github.com/supabase/cli/internal/migration/new"
-	"github.com/supabase/cli/internal/migration/repair"
-	"github.com/supabase/cli/internal/migration/squash"
-	"github.com/supabase/cli/internal/migration/up"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/internal/migration/down"
+	"github.com/volcengine/byted-supabase-cli/internal/migration/fetch"
+	"github.com/volcengine/byted-supabase-cli/internal/migration/list"
+	"github.com/volcengine/byted-supabase-cli/internal/migration/new"
+	"github.com/volcengine/byted-supabase-cli/internal/migration/repair"
+	"github.com/volcengine/byted-supabase-cli/internal/migration/squash"
+	"github.com/volcengine/byted-supabase-cli/internal/migration/up"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 )
 
 var (
@@ -57,7 +68,7 @@ var (
 			return repair.Run(cmd.Context(), flags.DbConfig, args, targetStatus.Value, afero.NewOsFs())
 		},
 		PostRun: func(cmd *cobra.Command, args []string) {
-			fmt.Println("Finished " + utils.Aqua("supabase migration repair") + ".")
+			fmt.Println("Finished " + utils.Aqua("byted-supabase-cli migration repair") + ".")
 		},
 	}
 
@@ -70,7 +81,7 @@ var (
 			return squash.Run(cmd.Context(), migrationVersion, flags.DbConfig, afero.NewOsFs())
 		},
 		PostRun: func(cmd *cobra.Command, args []string) {
-			fmt.Println("Finished " + utils.Aqua("supabase migration squash") + ".")
+			fmt.Println("Finished " + utils.Aqua("byted-supabase-cli migration squash") + ".")
 		},
 	}
 
@@ -164,5 +175,5 @@ func init() {
 	migrationCmd.AddCommand(migrationFetchCmd)
 	// Build new command
 	migrationCmd.AddCommand(migrationNewCmd)
-	rootCmd.AddCommand(migrationCmd)
+	// rootCmd.AddCommand(migrationCmd) // Volcengine does not support remote migration workflows; no subcommands need adaptation
 }

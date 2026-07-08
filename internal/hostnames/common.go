@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/go-errors/errors"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/pkg/api"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/pkg/api"
 )
 
 func VerifyCNAME(ctx context.Context, projectRef string, customHostname string) error {

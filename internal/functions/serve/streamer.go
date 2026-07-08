@@ -9,7 +9,7 @@ import (
 	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/go-errors/errors"
-	"github.com/supabase/cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
 )
 
 type logStreamer struct {

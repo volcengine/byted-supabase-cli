@@ -13,8 +13,8 @@ import (
 	"github.com/go-errors/errors"
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
-	"github.com/supabase/cli/internal/utils"
-	"github.com/supabase/cli/pkg/function"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/pkg/function"
 )
 
 type dockerBundler struct {
