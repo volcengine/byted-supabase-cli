@@ -1,52 +1,39 @@
 name: Release
 
-# Publishes @byted-supabase/cli + its 6 per-platform packages to npm.
+# Creates a GitHub Release when a semver tag is pushed:
+#     git tag v0.1.18 && git push origin v0.1.18
 #
-# Trigger: push a semver tag on the release branch.
-#     git tag v0.1.3 && git push origin v0.1.3
-#
-# All the real work — cross-compiling 6 targets, staging the packages, and
-# publishing platform-packages-before-main — lives in scripts/release.mjs, so a
-# release is reproducible locally (`npm run release:dry`). This workflow only
-# supplies the toolchain, the npm token, and the branch context that the
-# script's safety rails expect.
+# npm publishing is handled by the internal release pipeline
+# (scripts/release.mjs), not by this workflow. GitHub only hosts the
+# Release page: the tag, auto-generated notes, and source archives.
 
 on:
   push:
     tags:
       - "v*.*.*"
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        description: "Build and validate without publishing to npm"
-        type: boolean
-        default: true
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 env:
-  RELEASE_BRANCH: master
+  RELEASE_BRANCH: main
 
 jobs:
   release:
-    name: Publish to npm
+    name: Create GitHub Release
     runs-on: ubuntu-latest
-    environment: release
     steps:
-      # fetch-depth: 0 brings the tags and origin/master that the rails below need.
+      # fetch-depth: 0 brings origin/main so the ancestry check below can run.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # scripts/release.mjs refuses to run off the release branch, but a tag push
-      # checks out a detached HEAD. Rather than weaken the rail, prove the claim it
-      # encodes — the tagged commit really is on the release branch — and then put
-      # HEAD back on that branch so the script sees the truth.
+      # Only commits that landed on the default branch may become releases —
+      # a tag on a stray branch must not produce a Release page.
       - name: Verify tag is on ${{ env.RELEASE_BRANCH }}
         run: |
           set -euo pipefail
@@ -54,25 +41,8 @@ jobs:
             echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not an ancestor of origin/$RELEASE_BRANCH — refusing to release."
             exit 1
           fi
-          git checkout -B "$RELEASE_BRANCH" "$GITHUB_SHA"
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          registry-url: https://registry.npmjs.org
-
-      # Guards bin/cli.js and bin/install.js, the two files the main package ships.
-      - name: Test npm launcher
-        run: npm run test:npm
-
-      # release.mjs enforces the rest itself: clean tree, exactly one semver tag at
-      # HEAD, and no package already published at that version (append-only).
-      - name: Release
-        run: node scripts/release.mjs ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }}
+      - name: Create GitHub Release
+        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
