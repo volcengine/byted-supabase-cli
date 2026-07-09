@@ -4,8 +4,10 @@ name: Release
 #     git tag v0.1.18 && git push origin v0.1.18
 #
 # npm publishing is handled by the internal release pipeline
-# (scripts/release.mjs), not by this workflow. GitHub only hosts the
-# Release page: the tag, auto-generated notes, and source archives.
+# (scripts/release.mjs), not by this workflow. GitHub hosts the Release
+# page: auto-generated notes from the commit log, plus cross-compiled
+# binaries for the same 6 platforms the npm packages ship, with a
+# checksums.txt.
 
 on:
   push:
@@ -21,16 +23,19 @@ concurrency:
 
 env:
   RELEASE_BRANCH: main
+  BINARY: byted-supabase-cli
 
 jobs:
   release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     steps:
-      # fetch-depth: 0 brings origin/main so the ancestry check below can run.
+      # fetch-depth: 0 brings origin/main for the ancestry check and the
+      # previous tags for the release-notes range.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          fetch-tags: true
 
       # Only commits that landed on the default branch may become releases —
       # a tag on a stray branch must not produce a Release page.
@@ -42,7 +47,61 @@ jobs:
             exit 1
           fi
 
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Same recipe as scripts/release.mjs, so a binary downloaded from the
+      # Release page is identical to the one npm installs: CGO off, -trimpath,
+      # version injected via -X. Unix targets ship as .tar.gz, Windows as .zip.
+      - name: Build archives
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          LDFLAGS="-s -w -X github.com/volcengine/byted-supabase-cli/internal/utils.Version=${VERSION}"
+          mkdir -p dist
+          for target in darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64; do
+            goos="${target%/*}" goarch="${target#*/}"
+            exe=""; [ "$goos" = "windows" ] && exe=".exe"
+            outdir="dist/${goos}-${goarch}"
+            mkdir -p "$outdir"
+            echo "building ${goos}/${goarch}"
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
+              go build -trimpath -ldflags "$LDFLAGS" -o "${outdir}/${BINARY}${exe}" main.go
+            name="${BINARY}_${VERSION}_${goos}_${goarch}"
+            if [ "$goos" = "windows" ]; then
+              (cd "$outdir" && zip -q "../${name}.zip" "${BINARY}${exe}")
+            else
+              tar -czf "dist/${name}.tar.gz" -C "$outdir" "${BINARY}"
+            fi
+          done
+          (cd dist && sha256sum -- *.tar.gz *.zip > checksums.txt && cat checksums.txt)
+
+      # PR-based note generation has nothing to work with here (development
+      # happens off-GitHub), so build the body from the commit log instead:
+      # one line per commit since the previous semver tag.
+      - name: Generate release notes
+        run: |
+          set -euo pipefail
+          prev="$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)"
+          {
+            if [ -n "$prev" ]; then
+              echo "## Changes since ${prev}"
+              echo
+              git log --no-merges --pretty='- %s (%h)' "${prev}..${GITHUB_REF_NAME}"
+              echo
+              echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${prev}...${GITHUB_REF_NAME}"
+            else
+              echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/commits/${GITHUB_REF_NAME}"
+            fi
+          } > notes.md
+          cat notes.md
+
       - name: Create GitHub Release
-        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/*.tar.gz dist/*.zip dist/checksums.txt \
+            --title "$GITHUB_REF_NAME" --notes-file notes.md
         env:
           GH_TOKEN: ${{ github.token }}

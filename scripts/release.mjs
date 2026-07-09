@@ -187,8 +187,8 @@ const ldflags = `-s -w -X github.com/volcengine/byted-supabase-cli/internal/util
 const commonPkgFields = {
   version: VERSION,
   license: "MIT",
-  homepage: "https://github.com/volcengine/supabase-cli",
-  repository: { type: "git", url: "git+https://github.com/volcengine/supabase-cli.git" },
+  homepage: "https://github.com/volcengine/byted-supabase-cli",
+  repository: { type: "git", url: "git+https://github.com/volcengine/byted-supabase-cli.git" },
   publishConfig: { access: "public", registry: REGISTRY },
 };
 
