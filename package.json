@@ -4,10 +4,10 @@
   "description": "Byted Supabase CLI",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/volcengine/supabase-cli.git"
+    "url": "git+https://github.com/volcengine/byted-supabase-cli.git"
   },
-  "homepage": "https://github.com/volcengine/supabase-cli",
-  "bugs": "https://github.com/volcengine/supabase-cli/issues",
+  "homepage": "https://github.com/volcengine/byted-supabase-cli",
+  "bugs": "https://github.com/volcengine/byted-supabase-cli/issues",
   "license": "MIT",
   "author": "ByteDance",
   "publishConfig": {
