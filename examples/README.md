@@ -10,7 +10,7 @@ All examples come with an entrypoint that you can build and run locally.
 # Place your functions under supabase/functions
 export SUPABASE_PROJECT_ID="zeoxvqpvpyrxygmmatng"
 export SUPABASE_ACCESS_TOKEN="sbp_..."
-go run examples/deploy-functions/main.go
+go run examples/functions-deploy/main.go
 ```
 
 ### Migrate database
@@ -22,7 +22,7 @@ export PGPORT="5432"
 export PGUSER="postgres"
 export PGPASS="<your-password>"
 export PGDATABASE="postgres"
-go run examples/migrate-database/main.go
+go run examples/migrations-up/main.go
 ```
 
 ### Seed storage buckets
@@ -30,5 +30,5 @@ go run examples/migrate-database/main.go
 ```bash
 export SUPABASE_PROJECT_ID="zeoxvqpvpyrxygmmatng"
 export SUPABASE_SERVICE_ROLE_KEY="eyJh..."
-go run examples/migrate-database/main.go
+go run examples/seed-buckets/main.go
 ```
