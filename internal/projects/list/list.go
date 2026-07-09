@@ -142,12 +142,21 @@ type volcengineProjectDetail struct {
 	UsageStatTime            string  `json:"usage_stat_time" toml:"usage_stat_time" yaml:"usage_stat_time"`
 }
 
-type pageInfo struct {
-	region string
-	total  int
-	count  int
-	offset int
-	limit  int
+type volcengineListPage struct {
+	Region string `json:"region" toml:"region" yaml:"region"`
+	Total  int    `json:"total" toml:"total" yaml:"total"`
+	Count  int    `json:"count" toml:"count" yaml:"count"`
+	Offset int    `json:"offset" toml:"offset" yaml:"offset"`
+	Limit  int    `json:"limit" toml:"limit" yaml:"limit"`
+	// NextOffset is the --offset value for the next page; 0 when there are no more pages.
+	NextOffset int `json:"next_offset,omitempty" toml:"next_offset,omitempty" yaml:"next_offset,omitempty"`
+}
+
+type volcengineListOutput struct {
+	Projects   []volcengineProject  `json:"projects" toml:"projects" yaml:"projects"`
+	Count      int                  `json:"count" toml:"count" yaml:"count"`
+	Total      int                  `json:"total" toml:"total" yaml:"total"`
+	Pagination []volcengineListPage `json:"pagination" toml:"pagination" yaml:"pagination"`
 }
 
 func runVolcengine(ctx context.Context, fsys afero.Fs, params RunParams) error {
@@ -166,7 +175,7 @@ func runVolcengine(ctx context.Context, fsys afero.Fs, params RunParams) error {
 		fmt.Fprintln(os.Stderr, err)
 	}
 	var workspaces []volcengine.Workspace
-	var pages []pageInfo
+	var pages []volcengineListPage
 	for _, region := range cfgSet.Regions {
 		query := volcengine.ListWorkspacesParams{
 			ProjectName: params.ProjectName,
@@ -174,18 +183,17 @@ func runVolcengine(ctx context.Context, fsys afero.Fs, params RunParams) error {
 			Offset:      params.Offset,
 		}
 		client := volcengine.NewClient(cfgSet.ConfigForRegion(region))
-		result, err := client.ListWorkspaces(ctx, query)
+		var result volcengine.ListWorkspacesResult
+		if params.Limit == 0 {
+			result, err = client.ListAllSupabaseWorkspaces(ctx, query)
+		} else {
+			result, err = client.ListWorkspaces(ctx, query)
+		}
 		if err != nil {
 			return errors.Errorf("failed to list volcengine projects in region %s: %w", region, err)
 		}
 		workspaces = append(workspaces, result.Workspaces...)
-		pages = append(pages, pageInfo{
-			region: region,
-			total:  result.Total,
-			count:  len(result.Workspaces),
-			offset: params.Offset,
-			limit:  params.Limit,
-		})
+		pages = append(pages, buildVolcengineListPage(region, result, params.Offset, params.Limit))
 	}
 	projects := make([]volcengineProject, 0, len(workspaces))
 	for _, workspace := range workspaces {
@@ -218,36 +226,51 @@ func runVolcengine(ctx context.Context, fsys afero.Fs, params RunParams) error {
 		}
 		printVolcengineListPaginationHint(pages)
 		return nil
-	case utils.OutputToml:
-		return utils.EncodeOutput(utils.OutputFormat.Value, os.Stdout, struct {
-			Projects []volcengineProject `toml:"projects"`
-		}{
-			Projects: projects,
-		})
 	case utils.OutputEnv:
 		return errors.New(utils.ErrEnvNotSupported)
 	}
-	return utils.EncodeOutput(utils.OutputFormat.Value, os.Stdout, projects)
+	output := volcengineListOutput{
+		Projects:   projects,
+		Count:      len(projects),
+		Pagination: pages,
+	}
+	for _, page := range pages {
+		output.Total += page.Total
+	}
+	return utils.EncodeOutput(utils.OutputFormat.Value, os.Stdout, output)
 }
 
-func printVolcengineListPaginationHint(pages []pageInfo) {
+func buildVolcengineListPage(region string, result volcengine.ListWorkspacesResult, offset, limit int) volcengineListPage {
+	page := volcengineListPage{
+		Region: region,
+		Total:  result.Total,
+		Count:  len(result.Workspaces),
+		Offset: offset,
+		Limit:  limit,
+	}
+	if page.Count > 0 && page.Total > page.Offset+page.Count {
+		page.NextOffset = page.Offset + page.Count
+	}
+	return page
+}
+
+func printVolcengineListPaginationHint(pages []volcengineListPage) {
 	for _, page := range pages {
-		if page.count == 0 || page.total <= page.offset+page.count {
+		if page.NextOffset == 0 {
 			continue
 		}
-		nextOffset := page.offset + page.count
-		remaining := page.total - nextOffset
+		remaining := page.Total - page.NextOffset
 		fmt.Fprintf(
 			os.Stderr,
-			"Showing %d of %d projects in region %s (offset=%d, limit=%d). %d remaining; use --offset %d --limit %d to fetch the next page.\n",
-			page.count,
-			page.total,
-			page.region,
-			page.offset,
-			page.limit,
+			"Showing %d of %d projects in region %s (offset=%d, limit=%d). %d remaining; use --offset %d --limit %d to fetch the next page, or --limit 0 to list all.\n",
+			page.Count,
+			page.Total,
+			page.Region,
+			page.Offset,
+			page.Limit,
 			remaining,
-			nextOffset,
-			page.limit,
+			page.NextOffset,
+			page.Limit,
 		)
 	}
 }
