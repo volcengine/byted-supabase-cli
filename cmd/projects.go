@@ -162,7 +162,7 @@ var (
 		Short: "List all Supabase projects",
 		Long:  "List all Supabase projects the logged-in user can access.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := validateVolcenginePageFlags(projectsListLimit, projectsListOffset, false); err != nil {
+			if err := validateVolcenginePageFlags(projectsListLimit, projectsListOffset, true); err != nil {
 				return err
 			}
 			if err := ensureVolcengineRegion(cmd.Context(), afero.NewOsFs(), false); err != nil {
@@ -614,7 +614,7 @@ func init() {
 	markFlagTelemetrySafe(listFlags.Lookup("workspace-id"))
 	listFlags.BoolVar(&projectDetail, "detail", false, "Show Volcengine workspace detail instead of listing all projects.")
 	listFlags.StringVar(&volcProjectName, "volc-project-name", "", "Volcengine ProjectName to filter workspaces.")
-	listFlags.IntVar(&projectsListLimit, "limit", volcengineDefaultListLimit, "Maximum number of workspaces to return (1-100).")
+	listFlags.IntVar(&projectsListLimit, "limit", volcengineDefaultListLimit, "Maximum number of workspaces to return (1-100). Set 0 to list all.")
 	listFlags.IntVar(&projectsListOffset, "offset", 0, "Number of workspaces to skip before returning results.")
 
 	overviewFlags := projectsOverviewCmd.Flags()
