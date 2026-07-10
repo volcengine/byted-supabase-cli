@@ -47,3 +47,6 @@ AGENTS.md
 CLAUDE.md
 
 .docs/
+
+# SpecStory local history (editor plugin artifact)
+.specstory/
