@@ -62,7 +62,7 @@ func (e *ServiceLinkedRoleNotAssociatedError) Error() string {
 	return "无法创建工作区:尚未授权 AIDAP 服务关联角色(" + AIDAPServiceLinkedRoleName + ")。首次使用请先完成授权:\n" +
 		"  • 如果您是主账号:请为账号授权 " + AIDAPServiceLinkedRoleName + " 角色;\n" +
 		"  • 如果您是子账号:请联系您组织的主账号授权 " + AIDAPServiceLinkedRoleName + " 角色，并为您再授予 IAM 的 AIDAPFullAccess 预设策略(或包含 AIDAP 权限点的自定义策略)。\n" +
-		"完成授权后即可创建工作区。授权入口(请在浏览器中打开):\n  " + e.AuthorizationURL()
+		"完成授权后即可部署。授权入口(请在浏览器中打开,将自动创建角色并关联策略,完成后请返回本 CLI 继续部署):\n  " + e.AuthorizationURL()
 }
 
 // CheckAIDAPServiceLinkedRole verifies that the AIDAP service-linked role is authorized

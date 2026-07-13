@@ -52,7 +52,7 @@ func (e *PagesAccessRoleNotAssociatedError) Error() string {
 	return "无法部署前端(Pages):当前账号尚未授权 Pages 所需的服务角色(" + dcdnAccessRoleName + ")。首次使用前端部署请先完成授权:\n" +
 		"  • 如果您是主账号:请为账号授权 " + dcdnAccessRoleName + " 角色;\n" +
 		"  • 如果您是子账号:请联系您组织的主账号授权 " + dcdnAccessRoleName + " 角色。\n" +
-		"完成授权后即可部署。授权入口(请在浏览器中打开,将自动创建角色并关联策略):\n  " + e.AuthorizationURL()
+		"完成授权后即可部署。授权入口(请在浏览器中打开,将自动创建角色并关联策略,完成后请返回本 CLI 继续部署):\n  " + e.AuthorizationURL()
 }
 
 // CheckPagesAccessRole verifies that the DCDNAccessAIDPRole role is authorized for the
