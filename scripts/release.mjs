@@ -20,7 +20,11 @@
 //      package already exists at this version the release is complete: abort and
 //      bump. If only some PLATFORM packages exist (a previous run died mid-way,
 //      e.g. network failure), the release RESUMES: those are skipped and the
-//      missing packages (always ending with the main one) are published.
+//      missing packages (always ending with the main one) are published — but
+//      ONLY if their published gitHead matches HEAD. A version must ship the
+//      same code on every platform, so a re-tag onto different code is refused:
+//      bump the version instead (the orphaned platform packages are harmless —
+//      the main package at that version never existed, nothing installs them).
 //
 // Auth: the npm "Automation" token is read from a config file kept OUTSIDE the
 // repo (so re-cloning never touches the secret). Default path:
@@ -151,6 +155,28 @@ const versionExists = (pkg) => {
     return false; // E404 / no such version → does not exist. (npm publish is the ultimate overwrite guard.)
   }
 };
+const publishedGitHead = (pkg) => {
+  try {
+    return execFileSync("npm", ["view", `${pkg}@${VERSION}`, "gitHead", "--registry", REGISTRY], {
+      encoding: "utf8",
+      cwd: ROOT,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return "";
+  }
+};
+const HEAD_SHA = capture("git", ["rev-parse", "HEAD"]);
+const failDifferentCommit = (pkg, publishedHead) =>
+  fail(
+    `${pkg}@${VERSION} on the registry was built from commit\n` +
+      `  ${publishedHead || "<unknown>"}\nbut HEAD is\n  ${HEAD_SHA}\n` +
+      `A version must ship identical code on every platform, and published\n` +
+      `versions cannot be replaced. Bump the version (tag a new vX.Y.Z on\n` +
+      `this commit) instead of re-tagging ${VERSION}. The orphaned platform\n` +
+      `packages at ${VERSION} are harmless: ${MAIN_PKG}@${VERSION} was never\n` +
+      `published, so nothing ever installs them.`
+  );
 const existing = new Set(ALL_PKGS.filter(versionExists));
 if (existing.has(MAIN_PKG)) {
   fail(
@@ -160,9 +186,17 @@ if (existing.has(MAIN_PKG)) {
 }
 if (existing.size > 0) {
   // The main package is published LAST, so platform packages existing without it
-  // means a previous run was interrupted mid-publish. Resume: skip what landed.
+  // means a previous run was interrupted mid-publish. Resuming is only safe if
+  // those packages were built from THIS commit — the same version must never
+  // ship different code across platforms. Published packages carry their source
+  // commit in `gitHead`; verify it before skipping anything.
+  for (const pkg of existing) {
+    const publishedHead = publishedGitHead(pkg);
+    if (publishedHead !== HEAD_SHA) failDifferentCommit(pkg, publishedHead);
+  }
   warn(
-    `Resuming a partial release — already published at ${VERSION} (will skip):\n  ` +
+    `Resuming a partial release — already published at ${VERSION} from this\n` +
+      `  commit (will skip):\n  ` +
       [...existing].join("\n  ")
   );
 }
@@ -195,6 +229,9 @@ const writeNpmrc = (dir) => {
 const ldflags = `-s -w -X github.com/volcengine/byted-supabase-cli/internal/utils.Version=${VERSION}`;
 const commonPkgFields = {
   version: VERSION,
+  // Source-commit stamp: lets a resumed run prove that already-published
+  // packages at this version were built from the same code (see rail 4).
+  gitHead: HEAD_SHA,
   license: "MIT",
   homepage: "https://github.com/volcengine/byted-supabase-cli",
   repository: { type: "git", url: "git+https://github.com/volcengine/byted-supabase-cli.git" },
@@ -204,6 +241,10 @@ const commonPkgFields = {
 const stageDirs = [];
 for (const t of TARGETS) {
   const name = platformPkgName(t);
+  if (existing.has(name)) {
+    info(`skipping build of ${name} (already published at ${VERSION} from this commit)`);
+    continue;
+  }
   const dir = path.join(STAGE, `cli-${t.os}-${t.cpu}`);
   fs.mkdirSync(path.join(dir, "bin"), { recursive: true });
   const outBin = path.join(dir, "bin", `${BINARY}${t.exe}`);
@@ -277,7 +318,11 @@ const publishPackage = (name, dir) => {
     // The upload may have landed even though npm reported an error (lost
     // response, or a previous run's publish only propagated after the rail-4
     // check) — re-verify against the registry before treating it as a failure.
+    // Same rule as rail 4: it only counts as published if it carries OUR commit;
+    // a version that exists from different code is a hard stop, not a skip.
     if (!DRY_RUN && versionExists(name)) {
+      const publishedHead = publishedGitHead(name);
+      if (publishedHead !== HEAD_SHA) failDifferentCommit(name, publishedHead);
       warn(`${name}@${VERSION} is already on the registry — treating as published.`);
       return;
     }
