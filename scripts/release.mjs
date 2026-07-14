@@ -16,9 +16,11 @@
 //   1. Must run on the release branch (default: master; override RELEASE_BRANCH).
 //   2. Working tree must be clean.
 //   3. HEAD must carry exactly one semver tag vX.Y.Z; that tag IS the version.
-//   4. None of the 7 packages may already exist at that version on the registry.
-//      Versions are append-only — we never overwrite, only add. A partial release
-//      (some packages already at this version) aborts: bump the version and retry.
+//   4. Versions are append-only — we never overwrite, only add. If the MAIN
+//      package already exists at this version the release is complete: abort and
+//      bump. If only some PLATFORM packages exist (a previous run died mid-way,
+//      e.g. network failure), the release RESUMES: those are skipped and the
+//      missing packages (always ending with the main one) are published.
 //
 // Auth: the npm "Automation" token is read from a config file kept OUTSIDE the
 // repo (so re-cloning never touches the secret). Default path:
@@ -149,12 +151,19 @@ const versionExists = (pkg) => {
     return false; // E404 / no such version → does not exist. (npm publish is the ultimate overwrite guard.)
   }
 };
-const existing = ALL_PKGS.filter(versionExists);
-if (existing.length > 0) {
+const existing = new Set(ALL_PKGS.filter(versionExists));
+if (existing.has(MAIN_PKG)) {
   fail(
-    `These packages already publish ${VERSION} (versions are append-only):\n  ` +
-      existing.join("\n  ") +
-      `\nBump the version (new tag) and retry.`
+    `${MAIN_PKG}@${VERSION} is already published — this release is complete\n` +
+      `(versions are append-only). Bump the version (new tag) for a new release.`
+  );
+}
+if (existing.size > 0) {
+  // The main package is published LAST, so platform packages existing without it
+  // means a previous run was interrupted mid-publish. Resume: skip what landed.
+  warn(
+    `Resuming a partial release — already published at ${VERSION} (will skip):\n  ` +
+      [...existing].join("\n  ")
   );
 }
 
@@ -256,12 +265,33 @@ writeNpmrc(mainDir);
 
 // ---- publish: platform packages FIRST, main package LAST ---------------------
 const publishArgs = DRY_RUN ? ["publish", "--dry-run"] : ["publish"];
-for (const { name, dir } of stageDirs) {
+const publishPackage = (name, dir) => {
+  if (existing.has(name)) {
+    info(`skipping ${name}@${VERSION} (already published)`);
+    return;
+  }
   info(`publishing ${name}@${VERSION}${DRY_RUN ? " (dry-run)" : ""}`);
-  run("npm", publishArgs, { cwd: dir });
+  try {
+    run("npm", publishArgs, { cwd: dir });
+  } catch (e) {
+    // The upload may have landed even though npm reported an error (lost
+    // response, or a previous run's publish only propagated after the rail-4
+    // check) — re-verify against the registry before treating it as a failure.
+    if (!DRY_RUN && versionExists(name)) {
+      warn(`${name}@${VERSION} is already on the registry — treating as published.`);
+      return;
+    }
+    fail(
+      `npm publish failed for ${name}@${VERSION}: ${e.message}\n` +
+        `Re-run this script with the same tag to resume — packages already\n` +
+        `published at ${VERSION} will be skipped automatically.`
+    );
+  }
+};
+for (const { name, dir } of stageDirs) {
+  publishPackage(name, dir);
 }
-info(`publishing ${MAIN_PKG}@${VERSION}${DRY_RUN ? " (dry-run)" : ""}`);
-run("npm", publishArgs, { cwd: mainDir });
+publishPackage(MAIN_PKG, mainDir);
 
 console.log(
   `\n✓ ${
