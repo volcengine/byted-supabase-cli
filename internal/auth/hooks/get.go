@@ -47,6 +47,10 @@ func GetHooksConfig(ctx context.Context, client *volcengine.Client, workspaceID,
 	if err != nil {
 		return nil, err
 	}
+	return fetchHooksConfig(ctx, access)
+}
+
+func fetchHooksConfig(ctx context.Context, access volcengine.PgMetaAccess) (map[string]interface{}, error) {
 	body, err := access.DoRequest(ctx, http.MethodGet, "/auth/v1/config/hooks", nil)
 	if err != nil {
 		return nil, err
