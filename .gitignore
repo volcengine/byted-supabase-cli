@@ -50,3 +50,6 @@ CLAUDE.md
 
 # SpecStory local history (editor plugin artifact)
 .specstory/
+
+# Local release-verification logs (never commit operational logs)
+scripts/*.log

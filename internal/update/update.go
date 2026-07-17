@@ -231,14 +231,22 @@ func maybeSyncSkills(ctx context.Context, s streams, params Params, version stri
 }
 
 func isUpToDate(latest, cur string) bool {
-	if cur == "" {
-		return false
-	}
-	cv := "v" + strings.TrimPrefix(cur, "v")
+	return !IsNewer(latest, cur)
+}
+
+// IsNewer reports whether latest (a "v"-prefixed semver from the registry) is
+// strictly newer than the running version current (with or without the "v").
+// The comparison uses release cores: a dev build stamped from git describe
+// (0.1.20-8-gc45ca44) is semver-prerelease and would otherwise rank below its
+// own base release, re-suggesting an "upgrade" to code it is already ahead of.
+// An empty or unparseable current version counts as outdated.
+func IsNewer(latest, current string) bool {
+	cv := "v" + strings.TrimPrefix(strings.TrimSpace(current), "v")
 	if !semver.IsValid(cv) {
-		return false
+		return semver.IsValid(latest)
 	}
-	return semver.Compare(latest, cv) <= 0
+	cv = strings.TrimSuffix(cv, semver.Prerelease(cv))
+	return semver.Compare(latest, cv) > 0
 }
 
 func doNpmUpdate(ctx context.Context, s streams, params Params, updater *Updater, cur, latest string) error {

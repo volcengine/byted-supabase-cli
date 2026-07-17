@@ -24,26 +24,15 @@ var (
 
 	skillsCmd = &cobra.Command{
 		Use:   "skills",
-		Short: "Manage the byted-supabase agent skill",
-		Long: `Install and inspect the byted-supabase skill (for Claude Code and other agents).
-
-The skill is published to skills.volces.com and installed globally via the
-external ` + "`skills`" + ` tool (requires Node.js / npx). It is also kept in sync
-automatically by ` + "`byted-supabase-cli update`" + `.`,
+		Short: skillsShort(),
+		Long:  skillsLong(),
 	}
 
 	skillsInstallCmd = &cobra.Command{
-		Use:   "install",
-		Short: "Install or update the byted-supabase skill",
-		Long: `Install or update the byted-supabase skill, pinning it to this CLI version.
-
-Runs: npx -y skills add <source> -s ` + skills.Name() + ` -g -y
-
-Use --force to reinstall even if it is already in sync.
-Use --json for structured output (for scripts and AI agents).`,
-		Example: `  byted-supabase-cli skills install
-  byted-supabase-cli skills install --force
-  byted-supabase-cli skills install --json`,
+		Use:     "install",
+		Short:   skillsInstallShort(),
+		Long:    skillsInstallLong(),
+		Example: skillsInstallExample(),
 		Aliases: []string{"update", "sync"},
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -151,7 +140,7 @@ func runSkillsStatus(asJSON bool, stdout, stderr io.Writer) error {
 
 	if !installed {
 		fmt.Fprintf(stderr, "%s skill: not installed\n", skills.Name())
-		fmt.Fprintln(stderr, "Install it with: byted-supabase-cli skills install")
+		fmt.Fprintln(stderr, "Install it with: "+skills.InstallCommand())
 		return nil
 	}
 	if !versionTracked {
@@ -167,7 +156,7 @@ func runSkillsStatus(asJSON bool, stdout, stderr io.Writer) error {
 	fmt.Fprintf(stderr, "%s skill: installed (synced for v%s, CLI v%s) — %s\n",
 		skills.Name(), strings.TrimPrefix(state.Version, "v"), strings.TrimPrefix(version, "v"), status)
 	if !inSync {
-		fmt.Fprintln(stderr, "Update it with: byted-supabase-cli skills install")
+		fmt.Fprintln(stderr, "Update it with: "+skills.InstallCommand())
 	}
 	return nil
 }
@@ -179,4 +168,58 @@ func writeJSON(w io.Writer, payload map[string]any) error {
 	}
 	_, err = fmt.Fprintln(w, string(b))
 	return err
+}
+
+// The skills command's help text names the skill (skills.Name) and the binary
+// (skills.CLIName). Both are resolved through the distribution/agent seams,
+// which are installed in main() — after this package's var block runs. So the
+// builders below are evaluated twice: once at init for a sane default, and
+// again by refreshSkillsHelp once the seams are live (see Execute /
+// GetRootCmd), so a downstream distribution's help shows its own skill and
+// binary name instead of the upstream defaults.
+
+func skillsShort() string {
+	return fmt.Sprintf("Manage the %s agent skill", skills.Name())
+}
+
+func skillsLong() string {
+	return fmt.Sprintf(`Install and inspect the %s skill (for Claude Code and other agents).
+
+The skill is installed globally via the external `+"`skills`"+` tool (requires
+Node.js / npx). It is also kept in sync automatically by `+"`%s update`"+`.`,
+		skills.Name(), skills.CLIName())
+}
+
+func skillsInstallShort() string {
+	return fmt.Sprintf("Install or update the %s skill", skills.Name())
+}
+
+func skillsInstallLong() string {
+	return fmt.Sprintf(`Install or update the %s skill, pinning it to this CLI version.
+
+Runs: npx -y skills add <source> -s %s -g -y
+
+Use --force to reinstall even if it is already in sync.
+Use --json for structured output (for scripts and AI agents).`,
+		skills.Name(), skills.Name())
+}
+
+func skillsInstallExample() string {
+	cli := skills.CLIName()
+	return fmt.Sprintf(`  %s skills install
+  %s skills install --force
+  %s skills install --json`, cli, cli, cli)
+}
+
+// refreshSkillsHelp recomputes the skills command help from the now-installed
+// distribution/agent seams. The var-block values were baked at package init,
+// before main() called distribution.Set / agent.Set, so a downstream build
+// would otherwise show the upstream skill and binary name. Called from Execute
+// and GetRootCmd, right after distribution.Apply. Idempotent.
+func refreshSkillsHelp() {
+	skillsCmd.Short = skillsShort()
+	skillsCmd.Long = skillsLong()
+	skillsInstallCmd.Short = skillsInstallShort()
+	skillsInstallCmd.Long = skillsInstallLong()
+	skillsInstallCmd.Example = skillsInstallExample()
 }

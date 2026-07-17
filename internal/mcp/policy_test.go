@@ -15,7 +15,7 @@ import (
 func TestNewPolicyDefaults(t *testing.T) {
 	// Empty features falls back to the default set (all official groups, including storage).
 	p := newPolicy(Options{})
-	for _, f := range defaultFeatures {
+	for _, f := range defaultFeatures() {
 		assert.True(t, p.features[f], "default policy should enable %s", f)
 	}
 	assert.True(t, p.features[featureStorage], "storage must be on by default")

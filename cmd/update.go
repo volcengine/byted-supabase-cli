@@ -48,3 +48,22 @@ func init() {
 	flags.BoolVar(&updateJSON, "json", false, "Output structured JSON (for scripts and AI agents).")
 	rootCmd.AddCommand(updateCmd)
 }
+
+// updateCommandMounted reports whether the update command is still mounted on
+// the root after distribution assembly. Distributions whose release channel is
+// not the Volcengine npm registry prune update via the distribution seam; when
+// they do, the upgrade check and its nag are pointless (they would suggest a
+// command that no longer exists), so the command tree is the single source of
+// truth for whether to run them — no separate toggle to keep in sync.
+//
+// Matched by identity, not name: a distribution may mount its own command also
+// named "update" against a different release channel, and that must not
+// re-enable the Volcengine npm check.
+func updateCommandMounted() bool {
+	for _, c := range rootCmd.Commands() {
+		if c == updateCmd {
+			return true
+		}
+	}
+	return false
+}

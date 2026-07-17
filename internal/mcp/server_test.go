@@ -71,7 +71,7 @@ func TestHealthCheckRoundTrip(t *testing.T) {
 		Features []string `json:"features"`
 	}
 	require.NoError(t, json.Unmarshal([]byte(resultText(t, res)), &out))
-	assert.Equal(t, serverName, out.Server)
+	assert.Equal(t, serverName(), out.Server)
 	assert.True(t, out.ReadOnly)
 	assert.Equal(t, []string{featureDatabase}, out.Features)
 }

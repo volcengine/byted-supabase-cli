@@ -19,42 +19,105 @@ import (
 	"context"
 	"os"
 	"time"
+
+	"github.com/volcengine/byted-supabase-cli/agent"
 )
 
 const (
 	// defaultSource is the `skills add` source collection that contains the
 	// byted-supabase skill. defaultName selects that one skill out of the
-	// collection (`-s byted-supabase`).
-	defaultSource = "https://skills.volces.com/skills/bytedance/agentkit-samples"
-	defaultName   = "byted-supabase"
+	// collection (`-s byted-supabase`). defaultInstaller is the public `skills`
+	// npm package run through npx. defaultRegistry is empty: the public tool
+	// resolves from whatever registry the user's npm is configured with.
+	defaultSource    = "https://skills.volces.com/skills/bytedance/agentkit-samples"
+	defaultName      = "byted-supabase"
+	defaultInstaller = "skills"
+	defaultRegistry  = ""
 
 	envSource      = "BYTED_SUPABASE_CLI_SKILLS_SOURCE"
 	envName        = "BYTED_SUPABASE_CLI_SKILLS_NAME"
+	envInstaller   = "BYTED_SUPABASE_CLI_SKILLS_INSTALLER"
+	envRegistry    = "BYTED_SUPABASE_CLI_SKILLS_REGISTRY"
 	envNoNotifier  = "BYTED_SUPABASE_CLI_NO_SKILLS_NOTIFIER"
 	installTimeout = 2 * time.Minute
 )
 
-// Source returns the `skills add` source, overridable via env for testing or
-// staging registries.
+// Source returns the `skills add` source: the env override when set (testing
+// or staging registries), else the registered agent seam's source (downstream
+// distributions ship their own skill), else the upstream default.
 func Source() string {
 	if v := os.Getenv(envSource); v != "" {
 		return v
 	}
+	if a := agent.Get(); a != nil {
+		if s := a.Skill().Source; s != "" {
+			return s
+		}
+	}
 	return defaultSource
 }
 
-// Name returns the skill name to install (`-s <name>`).
+// Name returns the skill name to install (`-s <name>`), with the same
+// precedence as Source: env, then agent seam, then upstream default.
 func Name() string {
 	if v := os.Getenv(envName); v != "" {
 		return v
 	}
+	if a := agent.Get(); a != nil {
+		if n := a.Skill().Name; n != "" {
+			return n
+		}
+	}
 	return defaultName
+}
+
+// Installer returns the npm package spec of the `skills` CLI to run through npx
+// (e.g. "@example-scope/skills@latest" for a distribution's own channel), with
+// the same precedence as Source/Name: env, then agent seam, then the public
+// default.
+func Installer() string {
+	if v := os.Getenv(envInstaller); v != "" {
+		return v
+	}
+	if a := agent.Get(); a != nil {
+		if i := a.Skill().Installer; i != "" {
+			return i
+		}
+	}
+	return defaultInstaller
+}
+
+// Registry returns the npm registry to resolve Installer from (injected as
+// npm_config_registry; empty keeps the user's npm configuration), with the same
+// precedence as Source/Name: env, then agent seam, then the empty default.
+func Registry() string {
+	if v := os.Getenv(envRegistry); v != "" {
+		return v
+	}
+	if a := agent.Get(); a != nil {
+		if r := a.Skill().Registry; r != "" {
+			return r
+		}
+	}
+	return defaultRegistry
+}
+
+// InstallSpec bundles what to install and how to fetch the installer.
+type InstallSpec struct {
+	// Installer is the npm package spec of the `skills` CLI to run through npx.
+	Installer string
+	// Registry, when non-empty, pins npm_config_registry for the subprocess so
+	// Installer resolves from that registry only.
+	Registry string
+	// Source and Name are the `skills add <source> -s <name>` arguments.
+	Source string
+	Name   string
 }
 
 // Runner installs the skill. The default implementation shells out to npx; tests
 // inject a fake.
 type Runner interface {
-	Install(ctx context.Context, source, name string, force bool) *CmdResult
+	Install(ctx context.Context, spec InstallSpec, force bool) *CmdResult
 }
 
 // SyncOptions controls a Sync call.
@@ -87,7 +150,12 @@ func Sync(ctx context.Context, opts SyncOptions) *SyncResult {
 	name := Name()
 	res := &SyncResult{Skill: name, Version: opts.Version}
 
-	cmd := opts.Runner.Install(ctx, Source(), name, opts.Force)
+	cmd := opts.Runner.Install(ctx, InstallSpec{
+		Installer: Installer(),
+		Registry:  Registry(),
+		Source:    Source(),
+		Name:      name,
+	}, opts.Force)
 	if cmd == nil || cmd.Err != nil {
 		res.Action = "failed"
 		res.Detail = combinedTail(cmd)

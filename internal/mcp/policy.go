@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/go-errors/errors"
+	"github.com/volcengine/byted-supabase-cli/agent"
 	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 )
 
@@ -30,7 +31,7 @@ const (
 	featureAuth = "auth"
 )
 
-// officialFeatures is the set of supported feature group names.
+// officialFeatures is the full upstream set of supported feature group names.
 var officialFeatures = map[string]bool{
 	featureAccount:     true,
 	featureDatabase:    true,
@@ -43,16 +44,32 @@ var officialFeatures = map[string]bool{
 	featureAuth:        true,
 }
 
-// defaultFeatures enables all supported feature groups (including storage) by default.
+// availableFeatures returns the feature groups that exist in this build: the
+// official set minus any group the registered agent seam excludes (a
+// downstream that cuts a Volcengine-only command group cuts its MCP tools the
+// same way). Computed per call, not at package init, because agent.Set runs
+// during process startup — after this package is initialized.
+func availableFeatures() map[string]bool {
+	a := agent.Get()
+	out := make(map[string]bool, len(officialFeatures))
+	for f := range officialFeatures {
+		if a == nil || a.IncludeMCPFeature(f) {
+			out[f] = true
+		}
+	}
+	return out
+}
+
+// defaultFeatures enables all available feature groups (including storage) by default.
 //
 // This fork deliberately diverges from the upstream "storage off by default" convention
 // and enables everything; pass an explicit --features subset to narrow the set (replaces,
-// does not extend). Derived from officialFeatures so newly added groups are included automatically.
-var defaultFeatures = sortedOfficialFeatures()
-
-func sortedOfficialFeatures() []string {
-	out := make([]string, 0, len(officialFeatures))
-	for f := range officialFeatures {
+// does not extend). Derived from availableFeatures so newly added groups are included
+// automatically and agent-excluded groups never appear.
+func defaultFeatures() []string {
+	avail := availableFeatures()
+	out := make([]string, 0, len(avail))
+	for f := range avail {
 		out = append(out, f)
 	}
 	sort.Strings(out)
@@ -180,7 +197,7 @@ type policy struct {
 func newPolicy(opts Options) policy {
 	features := opts.Features
 	if len(features) == 0 {
-		features = defaultFeatures
+		features = defaultFeatures()
 	}
 	fm := make(map[string]bool, len(features))
 	for _, f := range features {
@@ -220,9 +237,11 @@ func validateOptions(opts Options) error {
 	return nil
 }
 
-// knownFeature reports whether name is an accepted feature group (an implemented official group or a legacy placeholder).
+// knownFeature reports whether name is an accepted feature group (an available
+// official group or a legacy placeholder). Agent-excluded groups are rejected
+// like any other unknown name, so --features cannot resurrect them.
 func knownFeature(name string) bool {
-	return officialFeatures[name] || legacyFeatures[name]
+	return availableFeatures()[name] || legacyFeatures[name]
 }
 
 // allToolNames returns the names of all registered tools (including feature-less
@@ -278,9 +297,10 @@ func (p policy) allows(name, feature string, mutating bool) bool {
 
 // enabledFeatures returns the currently active supported feature groups, sorted.
 func (p policy) enabledFeatures() []string {
+	avail := availableFeatures()
 	out := make([]string, 0, len(p.features))
 	for f := range p.features {
-		if officialFeatures[f] {
+		if avail[f] {
 			out = append(out, f)
 		}
 	}

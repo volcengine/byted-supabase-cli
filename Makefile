@@ -16,16 +16,19 @@
 # Run `make npm-release-dry` first to rehearse (builds + `npm publish --dry-run`,
 # no upload). Auth: set NODE_AUTH_TOKEN (npm Automation token) or `npm login`.
 
-# Nearest git tag, with the leading "v" stripped (v0.1.3 -> 0.1.3). Used only by
-# build-cli; the release script reads the tag itself.
-VERSION ?= $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
+# Full git describe, with the leading "v" stripped. On a tagged commit this is
+# the clean version (v0.1.3 -> 0.1.3); between tags it carries the distance and
+# commit (0.1.3-8-gc45ca44), so a local dev build is distinguishable from the
+# published release at a glance. Used only by build-cli; the release script
+# reads the tag itself.
+VERSION ?= $(shell git describe --tags 2>/dev/null | sed 's/^v//')
 
 DIST    ?= dist
 BINARY  ?= byted-supabase-cli
 
 .DEFAULT_GOAL := help
 
-.PHONY: help npm-release npm-release-dry build-cli
+.PHONY: help npm-release npm-release-dry build-cli e2e-live
 
 # Self-documenting help: lists every target with a `## comment` on its rule line.
 help:
@@ -43,6 +46,13 @@ build-cli: ## Build the CLI into ./dist for the host platform
 	  -ldflags "-s -w -X github.com/volcengine/byted-supabase-cli/internal/utils.Version=$(VERSION)" \
 	  -o $(DIST)/$(BINARY) main.go
 	@echo "built $(DIST)/$(BINARY) (version: $(if $(VERSION),$(VERSION),dev))"
+
+# Live e2e: drives $(DIST)/$(BINARY) against a real Volcengine account —
+# creates and deletes a workspace, so it bills the account. Auth and knobs are
+# documented in test/e2e/README.md. Kept out of `go test ./...` by the
+# live_e2e build tag.
+e2e-live: build-cli ## Run live e2e tests against a real Volcengine account (creates a workspace)
+	go test -tags live_e2e -v -timeout 45m -count=1 ./test/e2e/...
 
 # Cross-compile every platform and publish all 7 packages. All safety rails live
 # in scripts/release.mjs (see header). Requires npm auth (NODE_AUTH_TOKEN / login).

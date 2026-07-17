@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -23,24 +24,34 @@ type CmdResult struct {
 
 func (r *CmdResult) combined() string { return r.Stdout.String() + r.Stderr.String() }
 
-// npxRunner installs the skill via the external `skills` CLI run through npx:
+// npxRunner installs the skill via an external `skills`-style CLI run through npx:
 //
-//	npx -y skills add <source> -s <name> -g -y [--force]
+//	npx -y <installer> add <source> -s <name> -g -y [--force]
 //
-// -g installs globally (skills live under the user's home, not the project),
-// the leading -y auto-confirms npx's package fetch, and the trailing -y
-// auto-confirms the skills tool's prompts.
+// installer is the npm package: the public "skills" tool upstream, or a
+// distribution's own (e.g. "@example-scope/skills@latest"). -g installs
+// globally (skills live under the user's home, not the project), the leading
+// -y auto-confirms npx's package fetch, and the trailing -y auto-confirms the
+// skills tool's prompts. A non-empty spec.Registry is injected as
+// npm_config_registry so the installer package resolves from that registry
+// regardless of the user's npm configuration — required when the installer
+// lives on a private registry, otherwise npx would fall through to the public
+// one and could execute a same-named squatter package (dependency confusion).
 type npxRunner struct{}
 
-func (npxRunner) Install(ctx context.Context, source, name string, force bool) *CmdResult {
+func (npxRunner) Install(ctx context.Context, spec InstallSpec, force bool) *CmdResult {
 	r := &CmdResult{}
 	npx, err := exec.LookPath("npx")
 	if err != nil {
 		r.Err = fmt.Errorf("npx not found in PATH (install Node.js to manage skills): %w", err)
 		return r
 	}
+	installer := strings.TrimSpace(spec.Installer)
+	if installer == "" {
+		installer = "skills"
+	}
 
-	args := []string{"-y", "skills", "add", source, "-s", name, "-g", "-y"}
+	args := []string{"-y", installer, "add", spec.Source, "-s", spec.Name, "-g", "-y"}
 	if force {
 		args = append(args, "--force")
 	}
@@ -49,6 +60,9 @@ func (npxRunner) Install(ctx context.Context, source, name string, force bool) *
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, npx, args...)
+	if reg := strings.TrimSpace(spec.Registry); reg != "" {
+		cmd.Env = append(os.Environ(), "npm_config_registry="+reg)
+	}
 	cmd.Stdout = &r.Stdout
 	cmd.Stderr = &r.Stderr
 	r.Err = cmd.Run()

@@ -22,17 +22,21 @@ func isolate(t *testing.T) {
 	t.Setenv(envNoNotifier, "")
 	t.Setenv(envSource, "")
 	t.Setenv(envName, "")
+	t.Setenv(envInstaller, "")
+	t.Setenv(envRegistry, "")
 }
 
 type fakeRunner struct {
 	err      error
 	calls    int
 	gotForce bool
+	gotSpec  InstallSpec
 }
 
-func (f *fakeRunner) Install(_ context.Context, _, _ string, force bool) *CmdResult {
+func (f *fakeRunner) Install(_ context.Context, spec InstallSpec, force bool) *CmdResult {
 	f.calls++
 	f.gotForce = force
+	f.gotSpec = spec
 	r := &CmdResult{}
 	if f.err != nil {
 		r.Err = f.err
@@ -94,12 +98,63 @@ func TestSyncSuccessWritesState(t *testing.T) {
 	if r.calls != 1 || !r.gotForce {
 		t.Fatalf("runner not called with force: calls=%d force=%v", r.calls, r.gotForce)
 	}
+	if r.gotSpec.Installer != defaultInstaller {
+		t.Fatalf("runner got installer=%q, want default %q", r.gotSpec.Installer, defaultInstaller)
+	}
+	if r.gotSpec.Registry != defaultRegistry {
+		t.Fatalf("runner got registry=%q, want default %q", r.gotSpec.Registry, defaultRegistry)
+	}
 	if !IsSynced("1.4.0") {
 		t.Fatal("state should record the synced version")
 	}
 	state, _, _ := ReadState()
 	if state.UpdatedAt != fixedNow().Format(time.RFC3339) {
 		t.Fatalf("UpdatedAt = %q", state.UpdatedAt)
+	}
+}
+
+func TestInstallerAndRegistryPrecedence(t *testing.T) {
+	isolate(t)
+
+	// No env, no agent: the public defaults.
+	if got := Installer(); got != defaultInstaller {
+		t.Fatalf("default installer = %q, want %q", got, defaultInstaller)
+	}
+	if got := Registry(); got != defaultRegistry {
+		t.Fatalf("default registry = %q, want %q", got, defaultRegistry)
+	}
+
+	// Env overrides win.
+	t.Setenv(envInstaller, "@example-scope/skills@latest")
+	t.Setenv(envRegistry, "https://npm.example.com")
+	if got := Installer(); got != "@example-scope/skills@latest" {
+		t.Fatalf("env installer = %q, want @example-scope/skills@latest", got)
+	}
+	if got := Registry(); got != "https://npm.example.com" {
+		t.Fatalf("env registry = %q, want https://npm.example.com", got)
+	}
+}
+
+func TestSyncPassesSpecToRunner(t *testing.T) {
+	isolate(t)
+	t.Setenv(envInstaller, "@example-scope/skills@latest")
+	t.Setenv(envRegistry, "https://npm.example.com")
+	t.Setenv(envSource, "example-org/skills-repo")
+	t.Setenv(envName, "example-skill")
+
+	r := &fakeRunner{}
+	res := Sync(context.Background(), SyncOptions{Version: "1.4.0", Runner: r, Now: fixedNow})
+	if res.Action != "synced" {
+		t.Fatalf("want synced, got %q (err=%v)", res.Action, res.Err)
+	}
+	want := InstallSpec{
+		Installer: "@example-scope/skills@latest",
+		Registry:  "https://npm.example.com",
+		Source:    "example-org/skills-repo",
+		Name:      "example-skill",
+	}
+	if r.gotSpec != want {
+		t.Fatalf("spec = %+v, want %+v", r.gotSpec, want)
 	}
 }
 
