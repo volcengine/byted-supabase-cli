@@ -53,3 +53,5 @@ CLAUDE.md
 
 # Local release-verification logs (never commit operational logs)
 scripts/*.log
+
+sandbox_sdk/python/byted_supabase_sandbox/__pycache__/

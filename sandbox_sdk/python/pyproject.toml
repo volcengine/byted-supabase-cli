@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "byted-supabase-sandbox"
+version = "0.1.0"
+description = "Use the official E2B SDK against a Volcengine Supabase Sandbox instance"
+readme = "README.md"
+# The official e2b Python SDK requires >=3.10.
+requires-python = ">=3.10"
+dependencies = [
+    # We adapt the official SDK rather than vendoring or forking it.
+    "e2b>=2.31,<3",
+]
+
+[project.optional-dependencies]
+# Only needed for run_code (the code-interpreter template).
+code-interpreter = ["e2b-code-interpreter>=2.0,<3"]
+
+[project.urls]
+Homepage = "https://github.com/volcengine/byted-supabase-cli"
+
+[tool.setuptools.packages.find]
+include = ["byted_supabase_sandbox*"]

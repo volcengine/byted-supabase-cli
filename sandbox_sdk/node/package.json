@@ -1,0 +1,41 @@
+{
+  "name": "@byted-supabase/sandbox",
+  "version": "0.1.0",
+  "description": "Use the official E2B SDK against a Volcengine Supabase Sandbox instance",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build"
+  },
+  "peerDependencies": {
+    "@e2b/code-interpreter": ">=2.0.0 <3",
+    "e2b": ">=2.31.0 <3"
+  },
+  "peerDependenciesMeta": {
+    "@e2b/code-interpreter": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "e2b": "^2.33.0",
+    "typescript": "^5.4.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/volcengine/byted-supabase-cli.git",
+    "directory": "sandbox_sdk/node"
+  },
+  "license": "Apache-2.0"
+}
