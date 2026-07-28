@@ -113,9 +113,23 @@ const sbx = await Sandbox.create('base', {
 
 ### 模式 3：service_role + 让沙箱也拿到 service_role
 
-沙箱内的代码需要**绕过 RLS** 做管理级操作时用（例如批量数据处理）。初始化与模式 2 相同，区别在创建时显式开启：
+沙箱内的代码需要**绕过 RLS** 做管理级操作时用（例如批量数据处理）。
 
 ```ts
+import { initBytedSupabaseSandbox } from '@byted-supabase/sandbox'
+
+// service_role key 只能待在后端，绝不下发到浏览器
+initBytedSupabaseSandbox({
+  url: process.env.SUPABASE_URL!,
+  apiKey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+})
+```
+
+创建时显式开启，沙箱内才会拿到 service_role 身份：
+
+```ts
+import { Sandbox } from 'e2b'
+
 const sbx = await Sandbox.create('base', {
   metadata: { passServiceRoleJwtToSandbox: 'true' },
 })
@@ -230,9 +244,9 @@ try {
 }
 ```
 
-> ✅ 三个 Agent 模板**不需要您自己的模型 API Key**。Supabase 提供了访问大模型功能，开箱即用。
+> 三个 Agent 模板可以**不需要您自己准备大模型 API Key**。Supabase 提供了访问大模型功能，开箱即用。
 >
-> ❗ 但它们都要真的向模型发请求，**SDK 默认 60 秒的命令超时不够用**，必须显式放宽到 5 分钟量级。
+> 但它们都要真的向模型发请求，**SDK 默认 60 秒的命令超时不够用**，必须显式放宽到 5 分钟量级。
 
 ## 五、在沙箱里访问您的 Supabase
 
@@ -379,9 +393,24 @@ sbx = Sandbox.create("base", metadata={"ownerUserId": user_id})   # user_id 来�
 
 ### 模式 3：service_role + 让沙箱也拿到 service_role
 
-沙箱内的代码需要**绕过 RLS** 做管理级操作时用（例如批量数据处理）。初始化与模式 2 相同，区别在创建时显式开启：
+沙箱内的代码需要**绕过 RLS** 做管理级操作时用（例如批量数据处理）。
 
 ```python
+import os
+from byted_supabase_sandbox import init_byted_supabase_sandbox
+
+# service_role key 只能待在后端，绝不下发到客户端
+init_byted_supabase_sandbox(
+    url=os.environ["SUPABASE_URL"],
+    api_key=os.environ["SUPABASE_SERVICE_ROLE_KEY"],
+)
+```
+
+创建时显式开启，沙箱内才会拿到 service_role 身份：
+
+```python
+from e2b import Sandbox
+
 sbx = Sandbox.create("base", metadata={"passServiceRoleJwtToSandbox": "true"})
 ```
 
@@ -474,7 +503,7 @@ with Sandbox.create("opencode") as sbx:
     print(cmd.stdout)
 ```
 
-> ✅ 三个 Agent 模板**不需要您自己的模型 API Key**。Supabase 提供了访问大模型功能，开箱即用。
+> ✅ 三个 Agent 模板可以**不需要您自己准备大模型 API Key**。Supabase 提供了访问大模型功能，开箱即用。
 >
 > ❗ 但它们都要真的向模型发请求，**SDK 默认 60 秒的命令超时不够用**，必须显式放宽到 5 分钟量级。
 
