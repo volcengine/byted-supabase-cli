@@ -131,7 +131,7 @@ initBytedSupabaseSandbox({
 import { Sandbox } from 'e2b'
 
 const sbx = await Sandbox.create('base', {
-  metadata: { passServiceRoleJwtToSandbox: 'true' },
+  metadata: { PassServiceRoleJwtToSandbox: 'true' },
 })
 ```
 
@@ -145,7 +145,7 @@ const sbx = await Sandbox.create('base', {
 |---|---|---|---|---|
 | **模式 1**（推荐） | 用户 session token | 不用传 | 登录用户 | 该用户，受 RLS |
 | **模式 2** | service_role | `ownerUserId` | 指定的用户 | 该用户，受 RLS |
-| **模式 3** | service_role | `passServiceRoleJwtToSandbox` | 无（平台账户） | service_role，**绕过 RLS** |
+| **模式 3** | service_role | `PassServiceRoleJwtToSandbox` | 无（平台账户） | service_role，**绕过 RLS** |
 
 ## 四、示例代码
 
@@ -250,12 +250,25 @@ try {
 
 ## 五、在沙箱里访问您的 Supabase
 
-平台会向沙箱注入两个环境变量，沙箱里的代码可以直接用它们回连您的实例（查表、写 Storage 等）：
+平台会向沙箱注入三个环境变量，沙箱里的代码可以直接用它们回连您的实例（查表、写 Storage 等）：
 
 | 环境变量 | 含义 |
 |---|---|
 | `SUPABASE_URL` | 您的实例 API 地址 |
-| `SANDBOX_JWT` | 沙箱的身份凭据，权限由创建时选的模式决定（见三种模式对照表）。由平台签发、有效期 24 小时，您不需要管理它的刷新 |
+| `SUPABASE_ANON_KEY` | 您实例的 anon key，用作 `apikey` 请求头 |
+| `SANDBOX_JWT` | 沙箱的身份凭据，用作 `Authorization` 请求头。权限由创建时选的模式决定（见三种模式对照表）。由平台签发、有效期 24 小时，您不需要管理它的刷新 |
+
+> **重要**
+>
+> 访问实例 API 时，必须同时提供 `apikey` 和 `Authorization` 两个请求头。两者用途不同，缺少任意一个都会导致请求失败。
+
+| 请求头 | 值 | 说明 |
+|---|---|---|
+| `apikey` | `SUPABASE_ANON_KEY` | 用于通过实例 API 网关的凭证校验。网关仅接受该实例已注册的密钥，提供其它值时返回 `401`。此请求头不决定调用方的权限。 |
+| `Authorization` | `Bearer $SANDBOX_JWT` | 用于标识调用方身份。行级安全策略（RLS）依据该令牌中的角色和用户标识确定可访问的数据范围。 |
+
+如果将 `apikey` 设置为 `SANDBOX_JWT`，API 网关将返回 `401`，请求不会到达数据库。
+`SUPABASE_ANON_KEY` 在三种模式下取值相同，不影响权限；沙箱的实际权限完全由 `SANDBOX_JWT` 决定。
 
 沙箱内的用法就是标准 Supabase 客户端：
 
@@ -268,8 +281,8 @@ import os, urllib.request, json
 req = urllib.request.Request(
     os.environ["SUPABASE_URL"] + "/rest/v1/todos?select=*",
     headers={
-        "apikey": os.environ["SANDBOX_JWT"],
-        "Authorization": "Bearer " + os.environ["SANDBOX_JWT"],
+        "apikey": os.environ["SUPABASE_ANON_KEY"],               # 实例 API 密钥
+        "Authorization": "Bearer " + os.environ["SANDBOX_JWT"],  # 沙箱身份令牌
     },
 )
 print(urllib.request.urlopen(req).read().decode())
@@ -279,10 +292,28 @@ const out = await sbx.commands.run('python3 /tmp/query.py')
 console.log(out.stdout)   // 只会返回这个用户能看到的数据（RLS 生效）
 ```
 
+使用官方 `supabase-js` 客户端时，将 anon key 作为第二个参数传入，并通过 `Authorization` 请求头提供 `SANDBOX_JWT`：
+
+```ts
+await sbx.files.write('/tmp/query.mjs', `
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY,
+  { global: { headers: { Authorization: 'Bearer ' + process.env.SANDBOX_JWT } } },
+)
+
+const { data, error } = await supabase.from('todos').select('*')
+console.log(error ?? data)
+`)
+```
+
 ## 六、注意事项
 
 - **沙箱有存活时间**，默认 24h 到期自动回收。需要更久就在创建时传 `timeoutMs`，或用 `setTimeout` 续期。
-- **anon key 不能操作沙箱**，只能用来登录换 session。
+- **anon key 不能用于操作沙箱**：将其作为 Sandbox SDK 的 `apiKey` 会被拒绝，它仅用于用户登录以换取 session。
+  这与沙箱内注入的 `SUPABASE_ANON_KEY` 用途不同，后者用于回连实例时的 `apikey` 请求头，参见第五节。
 - **service_role key 绝不能出现在前端**，它等同于数据库的最高权限。
 
 ---
@@ -411,7 +442,7 @@ init_byted_supabase_sandbox(
 ```python
 from e2b import Sandbox
 
-sbx = Sandbox.create("base", metadata={"passServiceRoleJwtToSandbox": "true"})
+sbx = Sandbox.create("base", metadata={"PassServiceRoleJwtToSandbox": "true"})
 ```
 
 > ⚠️ 这会把**绕过 RLS 的最高权限**交给沙箱里运行的代码。只在您完全信任沙箱内容时使用；能用前两种模式走用户身份的场景就不要开它。
@@ -424,7 +455,7 @@ sbx = Sandbox.create("base", metadata={"passServiceRoleJwtToSandbox": "true"})
 |---|---|---|---|---|
 | **模式 1**（推荐） | 用户 session token | 不用传 | 登录用户 | 该用户，受 RLS |
 | **模式 2** | service_role | `ownerUserId` | 指定的用户 | 该用户，受 RLS |
-| **模式 3** | service_role | `passServiceRoleJwtToSandbox` | 无（平台账户） | service_role，**绕过 RLS** |
+| **模式 3** | service_role | `PassServiceRoleJwtToSandbox` | 无（平台账户） | service_role，**绕过 RLS** |
 
 ## 四、示例代码
 
@@ -509,12 +540,25 @@ with Sandbox.create("opencode") as sbx:
 
 ## 五、在沙箱里访问您的 Supabase
 
-平台会向沙箱注入两个环境变量，沙箱里的代码可以直接用它们回连您的实例（查表、写 Storage 等）：
+平台会向沙箱注入三个环境变量，沙箱里的代码可以直接用它们回连您的实例（查表、写 Storage 等）：
 
 | 环境变量 | 含义 |
 |---|---|
 | `SUPABASE_URL` | 您的实例 API 地址 |
-| `SANDBOX_JWT` | 沙箱的身份凭据，权限由创建时选的模式决定（见三种模式对照表）。由平台签发、有效期 24 小时，您不需要管理它的刷新 |
+| `SUPABASE_ANON_KEY` | 您实例的 anon key，用作 `apikey` 请求头 |
+| `SANDBOX_JWT` | 沙箱的身份凭据，用作 `Authorization` 请求头。权限由创建时选的模式决定（见三种模式对照表）。由平台签发、有效期 24 小时，您不需要管理它的刷新 |
+
+> **重要**
+>
+> 访问实例 API 时，必须同时提供 `apikey` 和 `Authorization` 两个请求头。两者用途不同，缺少任意一个都会导致请求失败。
+
+| 请求头 | 值 | 说明 |
+|---|---|---|
+| `apikey` | `SUPABASE_ANON_KEY` | 用于通过实例 API 网关的凭证校验。网关仅接受该实例已注册的密钥，提供其它值时返回 `401`。此请求头不决定调用方的权限。 |
+| `Authorization` | `Bearer $SANDBOX_JWT` | 用于标识调用方身份。行级安全策略（RLS）依据该令牌中的角色和用户标识确定可访问的数据范围。 |
+
+如果将 `apikey` 设置为 `SANDBOX_JWT`，API 网关将返回 `401`，请求不会到达数据库。
+`SUPABASE_ANON_KEY` 在三种模式下取值相同，不影响权限；沙箱的实际权限完全由 `SANDBOX_JWT` 决定。
 
 沙箱内的用法就是标准 Supabase 客户端：
 
@@ -526,8 +570,8 @@ import os, urllib.request
 req = urllib.request.Request(
     os.environ["SUPABASE_URL"] + "/rest/v1/todos?select=*",
     headers={
-        "apikey": os.environ["SANDBOX_JWT"],
-        "Authorization": "Bearer " + os.environ["SANDBOX_JWT"],
+        "apikey": os.environ["SUPABASE_ANON_KEY"],               # 实例 API 密钥
+        "Authorization": "Bearer " + os.environ["SANDBOX_JWT"],  # 沙箱身份令牌
     },
 )
 print(urllib.request.urlopen(req).read().decode())
@@ -537,8 +581,29 @@ print(urllib.request.urlopen(req).read().decode())
     print(out.stdout)   # 只会返回这个用户能看到的数据（RLS 生效）
 ```
 
+使用官方 `supabase` 客户端时，将 anon key 作为第二个参数传入，并通过 `Authorization` 请求头提供 `SANDBOX_JWT`：
+
+```python
+with Sandbox.create("base", metadata={"ownerUserId": user_id}) as sbx:
+    sbx.files.write("/tmp/query2.py", """
+import os
+from supabase import create_client, ClientOptions
+
+supabase = create_client(
+    os.environ["SUPABASE_URL"],
+    os.environ["SUPABASE_ANON_KEY"],
+    options=ClientOptions(headers={"Authorization": "Bearer " + os.environ["SANDBOX_JWT"]}),
+)
+
+print(supabase.table("todos").select("*").execute().data)
+""")
+
+    print(sbx.commands.run("pip install supabase -q && python3 /tmp/query2.py").stdout)
+```
+
 ## 六、注意事项
 
 - **沙箱有存活时间**，默认 24h 到期自动回收。需要更久就在创建时传 `timeout`（单位：秒），或用 `set_timeout` 续期。
-- **anon key 不能操作沙箱**，只能用来登录换 session。
+- **anon key 不能用于操作沙箱**：将其作为 Sandbox SDK 的 `apiKey` 会被拒绝，它仅用于用户登录以换取 session。
+  这与沙箱内注入的 `SUPABASE_ANON_KEY` 用途不同，后者用于回连实例时的 `apikey` 请求头，参见第五节。
 - **service_role key 绝不能出现在前端**，它等同于数据库的最高权限。
