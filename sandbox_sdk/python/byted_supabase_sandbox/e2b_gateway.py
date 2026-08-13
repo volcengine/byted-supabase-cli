@@ -292,7 +292,7 @@ class GatewayPatch:
         api_key: ApiKey = None,
         request_timeout: float | None = None,
         create_defaults: Mapping[str, Any] | None = None,
-        create_retries: int = 2,
+        create_retries: int = 0,
         create_retry_backoff: float = 3.0,
     ) -> None:
         self.api_url = api_url
@@ -558,7 +558,7 @@ def init_byted_supabase_sandbox(
     *,
     request_timeout: float | None = None,
     create_defaults: Mapping[str, Any] | None = None,
-    create_retries: int = 2,
+    create_retries: int = 0,
     create_retry_backoff: float = 3.0,
 ) -> GatewayPatch:
     """Point the official E2B SDK at a Volcengine Supabase compute-gateway instance.
@@ -582,7 +582,12 @@ def init_byted_supabase_sandbox(
         at the call site wins; ``metadata`` is merged rather than replaced. Defaults only -- this
         never inspects or rejects what the caller asked for.
     :param create_retries: Extra attempts when ``create`` fails with something the gateway marked
-        retryable (503). Quota and argument errors are never retried.
+        retryable (503). Quota and argument errors are never retried. **Defaults to 0 -- retrying
+        create is opt-in.** 503 covers two very different costs: the create gate sheds in ~1ms and
+        is worth retrying, but "the cluster has no capacity" is only reported after the gateway
+        burns its full ready-wait window (90s for a pooled template). Retrying blindly multiplies
+        the caller's wait for the same answer and pushes the same multiple of futile cold starts
+        back at an already-saturated cluster. Set it explicitly when your workload can absorb that.
 
     Returns a handle whose ``restore()`` undoes the patch. Installing again replaces the previous
     installation -- this is process-global state, so one process serves one gateway and one

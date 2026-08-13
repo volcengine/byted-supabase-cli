@@ -233,7 +233,12 @@ export interface InitOptions {
   createDefaults?: Record<string, any>
   /**
    * Extra attempts when `create` fails with something the gateway marked retryable (503). Quota
-   * and argument errors are never retried.
+   * and argument errors are never retried. **Defaults to 0 -- retrying create is opt-in.** 503
+   * covers two very different costs: the create gate sheds in ~1ms and is worth retrying, but
+   * "the cluster has no capacity" is only reported after the gateway burns its full ready-wait
+   * window (90s for a pooled template). Retrying blindly multiplies the caller's wait for the
+   * same answer and pushes the same multiple of futile cold starts back at an already-saturated
+   * cluster. Set it explicitly when your workload can absorb that.
    */
   createRetries?: number
   createRetryBackoffMs?: number
@@ -274,7 +279,7 @@ export class GatewayPatch {
 
   constructor(opts: InitOptions & { apiUrl: string }) {
     this.apiUrl = opts.apiUrl
-    this.createRetries = opts.createRetries ?? 2
+    this.createRetries = opts.createRetries ?? 0
     this.createRetryBackoffMs = opts.createRetryBackoffMs ?? 3000
     this.apiKeyOption = opts.apiKey
     this.requestTimeoutMs = opts.requestTimeoutMs
