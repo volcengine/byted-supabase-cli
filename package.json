@@ -31,11 +31,11 @@
     "byted-supabase-cli": "bin/cli.js"
   },
   "optionalDependencies": {
-    "@byted-supabase/cli-darwin-x64": "0.1.2",
-    "@byted-supabase/cli-darwin-arm64": "0.1.2",
-    "@byted-supabase/cli-linux-x64": "0.1.2",
-    "@byted-supabase/cli-linux-arm64": "0.1.2",
-    "@byted-supabase/cli-win32-x64": "0.1.2",
-    "@byted-supabase/cli-win32-arm64": "0.1.2"
+    "@byted-supabase/cli-darwin-x64": "0.1.21",
+    "@byted-supabase/cli-darwin-arm64": "0.1.21",
+    "@byted-supabase/cli-linux-x64": "0.1.21",
+    "@byted-supabase/cli-linux-arm64": "0.1.21",
+    "@byted-supabase/cli-win32-x64": "0.1.21",
+    "@byted-supabase/cli-win32-arm64": "0.1.21"
   }
 }
