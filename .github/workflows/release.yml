@@ -32,7 +32,7 @@ jobs:
     steps:
       # fetch-depth: 0 brings origin/main for the ancestry check and the
       # previous tags for the release-notes range.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -47,7 +47,7 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
