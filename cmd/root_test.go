@@ -138,6 +138,28 @@ func TestTelemetryIsAgent(t *testing.T) {
 	})
 }
 
+func TestShouldAutoLogin(t *testing.T) {
+	t.Run("disabled in agent mode", func(t *testing.T) {
+		t.Setenv("CLAUDE_CODE", "1")
+		utils.AgentMode.Value = "auto"
+		t.Cleanup(func() {
+			utils.AgentMode.Value = "auto"
+		})
+
+		assert.False(t, shouldAutoLogin())
+	})
+
+	t.Run("disabled when explicitly in agent mode", func(t *testing.T) {
+		t.Setenv("CLAUDE_CODE", "")
+		utils.AgentMode.Value = "yes"
+		t.Cleanup(func() {
+			utils.AgentMode.Value = "auto"
+		})
+
+		assert.False(t, shouldAutoLogin())
+	})
+}
+
 func TestTelemetryEnvSignals(t *testing.T) {
 	clearTelemetryEnv(t)
 	t.Setenv("CURSOR_AGENT", "1")
