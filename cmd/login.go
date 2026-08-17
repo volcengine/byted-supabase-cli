@@ -13,8 +13,10 @@ package cmd
 
 import (
 	"os"
+	"runtime"
 
 	"github.com/spf13/cobra"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
 	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 )
 
@@ -62,10 +64,11 @@ byted-supabase-cli login --skip-region`,
 			if changed {
 				agentPlanProfilePtr = &agentPlanProfile
 			}
+			remote := loginRemote || shouldUseNonInteractiveLoginHintFor(runtime.GOOS, utils.NewConsole().IsTTY)
 			return volcengine.RunConsoleLogin(cmd.Context(), volcengine.ConsoleLoginParams{
 				Profile:         loginProfile,
 				Region:          loginRegion,
-				Remote:          loginRemote,
+				Remote:          remote,
 				EndpointURL:     loginEndpointURL,
 				SkipRegion:      loginSkipRegion,
 				CredentialFile:  loginCredentialFile,
