@@ -139,13 +139,6 @@ func TestTelemetryIsAgent(t *testing.T) {
 }
 
 func TestShouldAutoLogin(t *testing.T) {
-	t.Run("detailed hint only applies to Linux without a TTY", func(t *testing.T) {
-		assert.True(t, shouldUseNonInteractiveLoginHintFor("linux", false))
-		assert.False(t, shouldUseNonInteractiveLoginHintFor("linux", true))
-		assert.False(t, shouldUseNonInteractiveLoginHintFor("darwin", false))
-		assert.False(t, shouldUseNonInteractiveLoginHintFor("windows", false))
-	})
-
 	t.Run("disabled in agent mode", func(t *testing.T) {
 		t.Setenv("CLAUDE_CODE", "1")
 		utils.AgentMode.Value = "auto"

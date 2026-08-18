@@ -19,7 +19,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -66,21 +65,8 @@ func promptLogin(ctx context.Context, cmd *cobra.Command, fsys afero.Fs) error {
 			if detectErr != nil || !shouldLogin {
 				return err
 			}
-			if shouldUseNonInteractiveLoginHint() {
-				return errors.New(`Volcengine login required.
-Non-interactive and agent commands do not start browser login automatically.
-
-Run:
-  byted-supabase-cli login --remote --region <region>
-
-or configure AK/SK with:
-  byted-supabase-cli configure set \
-    --access-key <key> \
-    --secret-key <secret> \
-    --region <region>`)
-			}
 			if !shouldAutoLogin() {
-				return err
+				return errors.New("Volcengine login required. Non-interactive and agent commands do not start browser login automatically. Run `byted-supabase-cli login --remote --region <region>` and complete the authorization, or configure AK/SK with `byted-supabase-cli configure set --access-key <key> --secret-key <secret> --region <region>`, then retry the command.")
 			}
 			fmt.Fprintln(os.Stderr, "No Volcengine profile found.")
 			fmt.Fprintf(os.Stderr, "You can configure AK/SK with `%s`, or set %s and %s.\n", "byted-supabase-cli configure set --access-key <key> --secret-key <secret> --region <region>", volcengine.EnvAccessKeyID, volcengine.EnvSecretAccessKey)
@@ -108,14 +94,6 @@ or configure AK/SK with:
 
 func shouldAutoLogin() bool {
 	return !utils.IsAgentMode() && utils.NewConsole().IsTTY
-}
-
-func shouldUseNonInteractiveLoginHint() bool {
-	return shouldUseNonInteractiveLoginHintFor(runtime.GOOS, utils.NewConsole().IsTTY)
-}
-
-func shouldUseNonInteractiveLoginHintFor(goos string, isTTY bool) bool {
-	return goos == "linux" && !isTTY
 }
 
 func isVolcengineManagementCommand(cmd *cobra.Command) bool {
