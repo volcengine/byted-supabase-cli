@@ -23,20 +23,50 @@ type PgMetaAccess struct {
 // ResolveDefaultBranchID returns branchID when non-empty, otherwise resolves the
 // workspace's default branch. Single source of truth for the "default branch
 // when none is given" fallback shared across the CLI and MCP tools.
+//
+// The lookup goes through DescribeBranches rather than DescribeDefaultBranch on
+// purpose: DescribeDefaultBranch gates on branch status and fails with
+// BranchStatusNotMatch for anything other than Ready/Suspended, so a branch that
+// is merely waking up (Activating) or restarting would break every caller that
+// omitted a branch id -- with an error that has nothing to do with what was
+// being asked. DescribeBranches applies no such gate.
 func (c *Client) ResolveDefaultBranchID(ctx context.Context, workspaceID, branchID string) (string, error) {
 	branchID = strings.TrimSpace(branchID)
 	if branchID != "" {
 		return branchID, nil
 	}
-	defaultBranch, err := c.DescribeDefaultBranch(ctx, workspaceID)
-	if err != nil {
-		return "", err
+	for offset := 0; ; {
+		branches, err := c.DescribeBranches(ctx, DescribeBranchesParams{
+			WorkspaceID: workspaceID,
+			Limit:       maxWorkspaceLimit,
+			Offset:      offset,
+		})
+		if err != nil {
+			return "", err
+		}
+		if id := selectDefaultBranchID(branches.Branches); id != "" {
+			return id, nil
+		}
+		offset += len(branches.Branches)
+		if len(branches.Branches) == 0 || offset >= branches.Total {
+			return "", errors.Errorf("failed to resolve default branch for workspace %s", workspaceID)
+		}
 	}
-	branchID = strings.TrimSpace(defaultBranch.Branch.BranchID)
-	if branchID == "" {
-		return "", errors.Errorf("failed to resolve default branch for workspace %s", workspaceID)
+}
+
+// selectDefaultBranchID returns the id of the branch flagged as the workspace
+// default, or "" when the page holds none. Branch status is deliberately not
+// considered -- see ResolveDefaultBranchID.
+func selectDefaultBranchID(branches []Branch) string {
+	for _, branch := range branches {
+		if !branch.Default {
+			continue
+		}
+		if id := strings.TrimSpace(branch.BranchID); id != "" {
+			return id
+		}
 	}
-	return branchID, nil
+	return ""
 }
 
 // ResolveBranchBaseURL resolves the branch's pg-meta base URL. When branchID is
