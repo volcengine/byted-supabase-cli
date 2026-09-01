@@ -155,13 +155,13 @@ func getDefaultBranch(ctx context.Context, p *policy, in getDefaultBranchInput) 
 	if err != nil {
 		return "", err
 	}
-	result, err := client.DescribeDefaultBranch(ctx, workspaceID)
+	branch, err := client.ResolveDefaultBranch(ctx, workspaceID)
 	if err != nil {
 		return "", err
 	}
 	return toJSON(map[string]any{
 		"workspace_id": workspaceID,
-		"branch":       toBranchView(result.Branch),
+		"branch":       toBranchView(branch),
 	})
 }
 

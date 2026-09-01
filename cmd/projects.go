@@ -865,11 +865,11 @@ func describeVolcengineComputeSettingsForPrompt(ctx context.Context, workspaceID
 		if workspace.EngineType != "" && workspace.EngineType != volcengine.EngineTypeSupabase {
 			return volcengine.Compute{}, errors.Errorf("workspace %s is %s, expected Supabase", workspaceID, workspace.EngineType)
 		}
-		defaultBranch, err := client.DescribeDefaultBranch(ctx, workspace.WorkspaceID)
+		defaultBranch, err := client.ResolveDefaultBranch(ctx, workspace.WorkspaceID)
 		if err != nil {
 			return volcengine.Compute{}, err
 		}
-		branchID := defaultBranch.Branch.BranchID
+		branchID := defaultBranch.BranchID
 		if branchID == "" {
 			return volcengine.Compute{}, errors.Errorf("failed to resolve default branch for workspace %s", workspace.WorkspaceID)
 		}

@@ -258,14 +258,14 @@ func resolveBranchID(ctx context.Context, client *volcengine.Client, workspaceID
 	if branchID != "" {
 		return branchID, nil
 	}
-	result, err := client.DescribeDefaultBranch(ctx, workspaceID)
+	branch, err := client.ResolveDefaultBranch(ctx, workspaceID)
 	if err != nil {
 		return "", err
 	}
-	if result.Branch.BranchID == "" {
+	if branch.BranchID == "" {
 		return "", errors.Errorf("failed to resolve default branch for workspace %s", workspaceID)
 	}
-	return result.Branch.BranchID, nil
+	return branch.BranchID, nil
 }
 
 func promptAvailableEIPAddress(ctx context.Context, client *volcengine.Client) (string, error) {

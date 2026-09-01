@@ -20,21 +20,9 @@ type PgMetaAccess struct {
 	ServiceRoleKey string
 }
 
-// ResolveDefaultBranchID returns branchID when non-empty, otherwise resolves the
-// workspace's default branch. Single source of truth for the "default branch
-// when none is given" fallback shared across the CLI and MCP tools.
-//
-// The lookup goes through DescribeBranches rather than DescribeDefaultBranch on
-// purpose: DescribeDefaultBranch gates on branch status and fails with
-// BranchStatusNotMatch for anything other than Ready/Suspended, so a branch that
-// is merely waking up (Activating) or restarting would break every caller that
-// omitted a branch id -- with an error that has nothing to do with what was
-// being asked. DescribeBranches applies no such gate.
-func (c *Client) ResolveDefaultBranchID(ctx context.Context, workspaceID, branchID string) (string, error) {
-	branchID = strings.TrimSpace(branchID)
-	if branchID != "" {
-		return branchID, nil
-	}
+// ResolveDefaultBranch returns the workspace's default branch without applying
+// the branch-status gate used by the control-plane DescribeDefaultBranch API.
+func (c *Client) ResolveDefaultBranch(ctx context.Context, workspaceID string) (Branch, error) {
 	for offset := 0; ; {
 		branches, err := c.DescribeBranches(ctx, DescribeBranchesParams{
 			WorkspaceID: workspaceID,
@@ -42,31 +30,29 @@ func (c *Client) ResolveDefaultBranchID(ctx context.Context, workspaceID, branch
 			Offset:      offset,
 		})
 		if err != nil {
-			return "", err
+			return Branch{}, err
 		}
-		if id := selectDefaultBranchID(branches.Branches); id != "" {
-			return id, nil
+		if branch, ok := selectDefaultBranch(branches.Branches); ok {
+			return branch, nil
 		}
 		offset += len(branches.Branches)
 		if len(branches.Branches) == 0 || offset >= branches.Total {
-			return "", errors.Errorf("failed to resolve default branch for workspace %s", workspaceID)
+			return Branch{}, errors.Errorf("failed to resolve default branch for workspace %s", workspaceID)
 		}
 	}
 }
 
-// selectDefaultBranchID returns the id of the branch flagged as the workspace
-// default, or "" when the page holds none. Branch status is deliberately not
-// considered -- see ResolveDefaultBranchID.
-func selectDefaultBranchID(branches []Branch) string {
+func selectDefaultBranch(branches []Branch) (Branch, bool) {
 	for _, branch := range branches {
 		if !branch.Default {
 			continue
 		}
 		if id := strings.TrimSpace(branch.BranchID); id != "" {
-			return id
+			branch.BranchID = id
+			return branch, true
 		}
 	}
-	return ""
+	return Branch{}, false
 }
 
 // ResolveBranchBaseURL resolves the branch's pg-meta base URL. When branchID is
@@ -75,9 +61,13 @@ func selectDefaultBranchID(branches []Branch) string {
 // shared by ResolvePgMetaAccess and callers that only need the URL (e.g. the MCP
 // get_workspace_url tool).
 func (c *Client) ResolveBranchBaseURL(ctx context.Context, workspaceID, branchID string) (baseURL, resolvedBranchID string, err error) {
-	branchID, err = c.ResolveDefaultBranchID(ctx, workspaceID, branchID)
-	if err != nil {
-		return "", "", err
+	branchID = strings.TrimSpace(branchID)
+	if branchID == "" {
+		branch, err := c.ResolveDefaultBranch(ctx, workspaceID)
+		if err != nil {
+			return "", "", err
+		}
+		branchID = branch.BranchID
 	}
 	endpoints, err := c.DescribeWorkspaceEndpoints(ctx, DescribeWorkspaceEndpointsParams{
 		WorkspaceID: workspaceID,

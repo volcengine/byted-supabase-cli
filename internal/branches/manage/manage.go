@@ -44,26 +44,28 @@ type UpdateStudioLoginResult struct {
 
 func RunGetDefault(ctx context.Context, params GetDefaultParams) error {
 	return runWorkspaceAction(ctx, params.WorkspaceID, func(client *volcengine.Client, workspace volcengine.Workspace) error {
-		result, err := client.DescribeDefaultBranch(ctx, workspace.WorkspaceID)
+		branch, err := client.ResolveDefaultBranch(ctx, workspace.WorkspaceID)
 		if err != nil {
 			return err
 		}
-		if result.Branch.BranchID == "" {
+		if branch.BranchID == "" {
 			return errors.Errorf("default branch for workspace %s not found", workspace.WorkspaceID)
 		}
 		switch utils.OutputFormat.Value {
 		case utils.OutputPretty:
-			return utils.RenderTable(toBranchMarkdown(branchDetailFromBranch(result.Branch)))
+			return utils.RenderTable(toBranchMarkdown(branchDetailFromBranch(branch)))
 		case utils.OutputToml:
 			return utils.EncodeOutput(utils.OutputFormat.Value, os.Stdout, struct {
 				Branch volcengine.Branch `toml:"branch"`
 			}{
-				Branch: result.Branch,
+				Branch: branch,
 			})
 		case utils.OutputEnv:
 			return errors.New(utils.ErrEnvNotSupported)
 		}
-		return utils.EncodeOutput(utils.OutputFormat.Value, os.Stdout, result)
+		return utils.EncodeOutput(utils.OutputFormat.Value, os.Stdout, struct {
+			Branch volcengine.Branch `json:"branch" yaml:"branch" toml:"branch"`
+		}{Branch: branch})
 	})
 }
 

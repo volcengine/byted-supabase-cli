@@ -113,9 +113,13 @@ func listSupabaseComputes(ctx context.Context, params ListParams) (string, volce
 	if err != nil {
 		return "", volcengine.DescribeComputesResult{}, err
 	}
-	branchID, err := client.ResolveDefaultBranchID(ctx, workspace.WorkspaceID, params.BranchID)
-	if err != nil {
-		return "", volcengine.DescribeComputesResult{}, err
+	branchID := strings.TrimSpace(params.BranchID)
+	if branchID == "" {
+		branch, err := client.ResolveDefaultBranch(ctx, workspace.WorkspaceID)
+		if err != nil {
+			return "", volcengine.DescribeComputesResult{}, err
+		}
+		branchID = branch.BranchID
 	}
 	result, err := client.DescribeBranchComputes(ctx, workspace.WorkspaceID, branchID, params.ServiceType)
 	if err != nil {

@@ -4,7 +4,7 @@
 # Local credentials for live integration tests (never commit AK/SK)
 .env.local
 .env.*.local
-
+/docs/
 # Binaries for programs and plugins
 *.exe
 *.exe~

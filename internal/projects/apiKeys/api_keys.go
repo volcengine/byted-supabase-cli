@@ -72,9 +72,13 @@ func RunVolcengine(ctx context.Context, params RunVolcengineParams) error {
 		return err
 	}
 	client := volcengine.NewClient(cfg)
-	branchID, err := client.ResolveDefaultBranchID(ctx, workspace.WorkspaceID, params.BranchID)
-	if err != nil {
-		return err
+	branchID := strings.TrimSpace(params.BranchID)
+	if branchID == "" {
+		branch, err := client.ResolveDefaultBranch(ctx, workspace.WorkspaceID)
+		if err != nil {
+			return err
+		}
+		branchID = branch.BranchID
 	}
 	result, err := client.DescribeAPIKeys(ctx, volcengine.DescribeAPIKeysParams{
 		WorkspaceID: workspace.WorkspaceID,

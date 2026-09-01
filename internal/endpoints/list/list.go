@@ -31,11 +31,11 @@ func RunVolcengine(ctx context.Context, params RunVolcengineParams) error {
 	client := volcengine.NewClient(cfg)
 	branchID := strings.TrimSpace(params.BranchID)
 	if branchID == "" {
-		defaultBranch, err := client.DescribeDefaultBranch(ctx, workspace.WorkspaceID)
+		defaultBranch, err := client.ResolveDefaultBranch(ctx, workspace.WorkspaceID)
 		if err != nil {
 			return err
 		}
-		branchID = defaultBranch.Branch.BranchID
+		branchID = defaultBranch.BranchID
 		if branchID == "" {
 			return errors.Errorf("failed to resolve default branch for workspace %s", workspace.WorkspaceID)
 		}

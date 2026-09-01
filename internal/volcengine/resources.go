@@ -67,10 +67,6 @@ type Operation struct {
 	DurationTime string `json:"DurationTime,omitempty"`
 }
 
-type DescribeDefaultBranchResult struct {
-	Branch Branch
-}
-
 type DescribeWorkspaceEndpointsParams struct {
 	WorkspaceID string
 	BranchID    string
@@ -378,17 +374,6 @@ func (c *Client) DescribeWorkspaceDetail(ctx context.Context, workspaceID string
 		return DescribeWorkspaceDetailResult{}, errors.Errorf("failed to call volcengine DescribeWorkspaceDetail: %w", err)
 	}
 	return DescribeWorkspaceDetailResult{Workspace: mapWorkspaceFromDetail(resp.Workspace)}, nil
-}
-
-func (c *Client) DescribeDefaultBranch(ctx context.Context, workspaceID string) (DescribeDefaultBranchResult, error) {
-	resp, err := c.aidap.DescribeDefaultBranchWithContext(ctx, (&aidap.DescribeDefaultBranchInput{}).SetWorkspaceId(workspaceID))
-	if err != nil {
-		return DescribeDefaultBranchResult{}, errors.Errorf("failed to call volcengine DescribeDefaultBranch: %w", err)
-	}
-	if resp == nil {
-		return DescribeDefaultBranchResult{}, nil
-	}
-	return DescribeDefaultBranchResult{Branch: mapDefaultBranch(resp.Branch)}, nil
 }
 
 func (c *Client) DescribeWorkspaceEndpoints(ctx context.Context, params DescribeWorkspaceEndpointsParams) (DescribeWorkspaceEndpointsResult, error) {
@@ -1026,9 +1011,13 @@ func (c *Client) DescribeDBAccountConnection(ctx context.Context, params Describ
 // compute" path shared by the CLI db connection helpers and the MCP
 // get_db_account_connection tool.
 func (c *Client) ResolvePrimaryDatabaseComputeID(ctx context.Context, workspaceID, branchID string) (resolvedBranchID, computeID string, err error) {
-	branchID, err = c.ResolveDefaultBranchID(ctx, workspaceID, branchID)
-	if err != nil {
-		return "", "", err
+	branchID = strings.TrimSpace(branchID)
+	if branchID == "" {
+		branch, err := c.ResolveDefaultBranch(ctx, workspaceID)
+		if err != nil {
+			return "", "", err
+		}
+		branchID = branch.BranchID
 	}
 	computes, err := c.DescribeComputes(ctx, workspaceID, branchID, ServiceTypeDatabase)
 	if err != nil {
@@ -1376,24 +1365,6 @@ func mapDescribeOperationsResult(resp *aidap.DescribeOperationsOutput) DescribeO
 		})
 	}
 	return result
-}
-
-func mapDefaultBranch(branch *aidap.BranchForDescribeDefaultBranchOutput) Branch {
-	if branch == nil {
-		return Branch{}
-	}
-	return Branch{
-		WorkspaceID:  stringValue(branch.WorkspaceId),
-		BranchID:     stringValue(branch.BranchId),
-		BranchName:   stringValue(branch.BranchName),
-		BranchStatus: stringValue(branch.BranchStatus),
-		Default:      boolValue(branch.Default),
-		Protected:    boolValue(branch.Protected),
-		Archived:     boolValue(branch.Archived),
-		InitSource:   stringValue(branch.InitSource),
-		CreateTime:   stringValue(branch.CreateTime),
-		UpdateTime:   stringValue(branch.UpdateTime),
-	}
 }
 
 func mapDescribeWorkspaceEndpointsResult(resp *aidap.DescribeWorkspaceEndpointOutput) DescribeWorkspaceEndpointsResult {

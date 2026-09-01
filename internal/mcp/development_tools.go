@@ -152,9 +152,13 @@ func getPublishableKeys(ctx context.Context, p *policy, in getPublishableKeysInp
 	if err != nil {
 		return "", err
 	}
-	branchID, err := client.ResolveDefaultBranchID(ctx, workspaceID, in.BranchID)
-	if err != nil {
-		return "", err
+	branchID := strings.TrimSpace(in.BranchID)
+	if branchID == "" {
+		branch, err := client.ResolveDefaultBranch(ctx, workspaceID)
+		if err != nil {
+			return "", err
+		}
+		branchID = branch.BranchID
 	}
 	result, err := client.DescribeAPIKeys(ctx, volcengine.DescribeAPIKeysParams{
 		WorkspaceID: workspaceID,

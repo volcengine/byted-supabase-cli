@@ -115,9 +115,13 @@ func getComputeSettings(ctx context.Context, p *policy, in getComputeSettingsInp
 	if err != nil {
 		return "", err
 	}
-	branchID, err := client.ResolveDefaultBranchID(ctx, workspaceID, in.BranchID)
-	if err != nil {
-		return "", err
+	branchID := strings.TrimSpace(in.BranchID)
+	if branchID == "" {
+		branch, err := client.ResolveDefaultBranch(ctx, workspaceID)
+		if err != nil {
+			return "", err
+		}
+		branchID = branch.BranchID
 	}
 	result, err := client.DescribeBranchComputes(ctx, workspaceID, branchID, in.ServiceType)
 	if err != nil {

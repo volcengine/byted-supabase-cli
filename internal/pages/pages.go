@@ -759,11 +759,10 @@ func waitForFastCreateWorkspaceReady(ctx context.Context, client *volcengine.Cli
 		}
 		workspace := workspaceResult.Workspace
 		if workspace.WorkspaceStatus == "Running" {
-			branchResult, err := client.DescribeDefaultBranch(ctx, workspaceID)
+			branch, err := client.ResolveDefaultBranch(ctx, workspaceID)
 			if err != nil {
 				return volcengine.Workspace{}, volcengine.Branch{}, err
 			}
-			branch := branchResult.Branch
 			if branch.BranchID != "" && branch.BranchStatus == "Ready" {
 				return workspace, branch, nil
 			}
@@ -1207,14 +1206,14 @@ func resolveBranchID(ctx context.Context, client *volcengine.Client, workspaceID
 	if branchID != "" {
 		return branchID, nil
 	}
-	defaultBranch, err := client.DescribeDefaultBranch(ctx, workspaceID)
+	branch, err := client.ResolveDefaultBranch(ctx, workspaceID)
 	if err != nil {
 		return "", err
 	}
-	if defaultBranch.Branch.BranchID == "" {
+	if branch.BranchID == "" {
 		return "", errors.Errorf("failed to resolve default branch for workspace %s", workspaceID)
 	}
-	return defaultBranch.Branch.BranchID, nil
+	return branch.BranchID, nil
 }
 
 func confirm(ctx context.Context, action string) error {
