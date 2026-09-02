@@ -691,9 +691,8 @@ func init() {
 	lintFlags.StringSliceVarP(&schema, "schema", "s", []string{}, "Comma separated list of schema to include.")
 	lintFlags.Var(&level, "level", "Error level to emit.")
 	lintFlags.Var(&lintFailOn, "fail-on", "Error level to exit with non-zero status.")
-	// Volcengine Supabase PostgreSQL does not provide the plpgsql_check
-	// extension required by the original db lint behavior:
-	// dbCmd.AddCommand(dbLintCmd)
+	// plpgsql_check is supported by the 6.7.1 PostgreSQL kernel.
+	dbCmd.AddCommand(dbLintCmd)
 	// Build start command
 	startFlags := dbStartCmd.Flags()
 	startFlags.StringVar(&fromBackup, "from-backup", "", "Path to a logical backup file.")
