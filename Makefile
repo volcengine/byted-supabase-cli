@@ -26,9 +26,16 @@ VERSION ?= $(shell git describe --tags 2>/dev/null | sed 's/^v//')
 DIST    ?= dist
 BINARY  ?= byted-supabase-cli
 
+# AgentBuddy skill 发布配置
+SKILLS_DIR ?= skills
+SKILL_NAME ?= byted-supabase
+NAMESPACE ?=
+BYTEDCLI ?= bytedcli
+SKILL_KEEP := SKILL.md references scripts assets
+
 .DEFAULT_GOAL := help
 
-.PHONY: help npm-release npm-release-dry build-cli e2e-live
+.PHONY: help npm-release npm-release-dry build-cli e2e-live skill-sync
 
 # Self-documenting help: lists every target with a `## comment` on its rule line.
 help:
@@ -63,3 +70,25 @@ npm-release: ## Build all platforms and publish to npmjs (version from git tag)
 # enforces the rails, uploads nothing. Use this to rehearse a release.
 npm-release-dry: ## Rehearse a release (build + pack, no upload)
 	node scripts/release.mjs --dry-run
+
+# Publish the checked-in skill to AgentBuddy. Only the runtime skill assets are
+# staged; repository metadata and channel-specific files are intentionally omitted.
+skill-sync: ## Publish the skill to AgentBuddy
+	@command -v $(firstword $(BYTEDCLI)) >/dev/null 2>&1 || { echo "❌ 未找到 bytedcli（可通过 BYTEDCLI= 覆盖）"; exit 1; }
+	@test -n "$(strip $(NAMESPACE))" || { echo "❌ 需指定命名空间：make skill-sync NAMESPACE=<owner>/<name>"; exit 1; }
+	@test -d "$(SKILLS_DIR)/$(SKILL_NAME)" || { echo "❌ skill 不存在: $(SKILLS_DIR)/$(SKILL_NAME)"; exit 1; }
+	@test -f "$(SKILLS_DIR)/$(SKILL_NAME)/SKILL.md" || { echo "❌ skill 缺少 SKILL.md: $(SKILLS_DIR)/$(SKILL_NAME)"; exit 1; }
+	@stage="$$(mktemp -d)"; \
+		trap 'rm -rf "$$stage"' EXIT; \
+		mkdir -p "$$stage/$(SKILL_NAME)"; \
+		for keep in $(SKILL_KEEP); do \
+			if [ -e "$(SKILLS_DIR)/$(SKILL_NAME)/$$keep" ]; then \
+				cp -R "$(SKILLS_DIR)/$(SKILL_NAME)/$$keep" "$$stage/$(SKILL_NAME)/"; \
+			fi; \
+		done; \
+		echo "→ 发布 $(SKILL_NAME) → AgentBuddy namespace=$(NAMESPACE)"; \
+		$(BYTEDCLI) agentbuddy skill publish \
+			--path "$$stage/$(SKILL_NAME)" \
+			--namespace "$(NAMESPACE)" \
+			--name "$(SKILL_NAME)"
+	@echo "✅ skill 已同步到 AgentBuddy"
