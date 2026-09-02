@@ -170,14 +170,6 @@ func writeJSON(w io.Writer, payload map[string]any) error {
 	return err
 }
 
-// The skills command's help text names the skill (skills.Name) and the binary
-// (skills.CLIName). Both are resolved through the distribution/agent seams,
-// which are installed in main() — after this package's var block runs. So the
-// builders below are evaluated twice: once at init for a sane default, and
-// again by refreshSkillsHelp once the seams are live (see Execute /
-// GetRootCmd), so a downstream distribution's help shows its own skill and
-// binary name instead of the upstream defaults.
-
 func skillsShort() string {
 	return fmt.Sprintf("Manage the %s agent skill", skills.Name())
 }
@@ -209,17 +201,4 @@ func skillsInstallExample() string {
 	return fmt.Sprintf(`  %s skills install
   %s skills install --force
   %s skills install --json`, cli, cli, cli)
-}
-
-// refreshSkillsHelp recomputes the skills command help from the now-installed
-// distribution/agent seams. The var-block values were baked at package init,
-// before main() called distribution.Set / agent.Set, so a downstream build
-// would otherwise show the upstream skill and binary name. Called from Execute
-// and GetRootCmd, right after distribution.Apply. Idempotent.
-func refreshSkillsHelp() {
-	skillsCmd.Short = skillsShort()
-	skillsCmd.Long = skillsLong()
-	skillsInstallCmd.Short = skillsInstallShort()
-	skillsInstallCmd.Long = skillsInstallLong()
-	skillsInstallCmd.Example = skillsInstallExample()
 }

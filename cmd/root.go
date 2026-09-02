@@ -28,7 +28,6 @@ import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/volcengine/byted-supabase-cli/distribution"
 	"github.com/volcengine/byted-supabase-cli/internal/debug"
 	"github.com/volcengine/byted-supabase-cli/internal/skills"
 	"github.com/volcengine/byted-supabase-cli/internal/telemetry"
@@ -373,12 +372,6 @@ var (
 
 func Execute() {
 	defer recoverAndExit()
-	// Let an installed distribution reshape the assembled tree (rebrand, swap
-	// auth, filter, extend, decorate) before anything runs. No-op by default.
-	distribution.Apply(rootCmd)
-	// Rebuild the skills command help from the now-installed distribution/agent
-	// seams (its init-time text predates main()'s Set calls).
-	refreshSkillsHelp()
 	startedAt := time.Now()
 	executedCmd, err := rootCmd.ExecuteC()
 	if executedCmd != nil {
@@ -395,19 +388,13 @@ func Execute() {
 		panic(err)
 	}
 	// Check upgrade last because --version flag is initialised after execute.
-	// Skip it entirely when the update command has been pruned (e.g. by a
-	// distribution whose release channel is not the Volcengine npm registry):
-	// the nag would point at a command that no longer exists, and there is no
-	// point in the network fetch or cache write either.
 	var version string
-	if updateCommandMounted() {
-		ctx := rootCmd.Context()
-		if executedCmd != nil {
-			ctx = executedCmd.Context()
-		}
-		if version, err = checkUpgrade(ctx, afero.NewOsFs()); err != nil {
-			fmt.Fprintln(utils.GetDebugLogger(), err)
-		}
+	ctx := rootCmd.Context()
+	if executedCmd != nil {
+		ctx = executedCmd.Context()
+	}
+	if version, err = checkUpgrade(ctx, afero.NewOsFs()); err != nil {
+		fmt.Fprintln(utils.GetDebugLogger(), err)
 	}
 	if hint := utils.SuggestClaudePlugin(); hint != "" {
 		fmt.Fprintln(os.Stderr, hint)
@@ -609,10 +596,6 @@ func init() {
 // instantiate new rootCmd is a bit tricky with cobra, but it can be done later with the following
 // approach for example: https://github.com/portworx/pxc/tree/master/cmd
 func GetRootCmd() *cobra.Command {
-	// Apply here too so distributions that inspect or re-mount the tree before
-	// calling Execute see the already-customized root. Idempotent.
-	distribution.Apply(rootCmd)
-	refreshSkillsHelp()
 	return rootCmd
 }
 

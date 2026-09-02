@@ -6,8 +6,6 @@ package skills
 import (
 	"fmt"
 	"sync/atomic"
-
-	"github.com/volcengine/byted-supabase-cli/distribution"
 )
 
 // StaleNotice signals that the locally installed skill version no longer matches
@@ -26,25 +24,13 @@ func (n *StaleNotice) Message() string {
 	)
 }
 
-// InstallCommand returns the user-facing command that (re)installs the skill,
-// branded with the distribution's CLI name when one is registered.
+// InstallCommand returns the user-facing command that (re)installs the skill.
 func InstallCommand() string { return cliName() + " skills install" }
 
-// CLIName returns the binary name users type, branded with the registered
-// distribution when one is installed (else the upstream default). Exported so
-// help text assembled at runtime — after the distribution/agent seams are
-// installed — prints the name the running distribution actually uses.
+// CLIName returns the binary name users type.
 func CLIName() string { return cliName() }
 
-// cliName is the binary name users type: the registered distribution's name
-// when one is installed, else the upstream default. Kept in sync with the
-// root command's Use via the same distribution seam.
 func cliName() string {
-	if d := distribution.Get(); d != nil {
-		if name := d.CLIName(); name != "" {
-			return name
-		}
-	}
 	return "byted-supabase-cli"
 }
 

@@ -19,8 +19,6 @@ import (
 	"context"
 	"os"
 	"time"
-
-	"github.com/volcengine/byted-supabase-cli/agent"
 )
 
 const (
@@ -42,62 +40,36 @@ const (
 	installTimeout = 2 * time.Minute
 )
 
-// Source returns the `skills add` source: the env override when set (testing
-// or staging registries), else the registered agent seam's source (downstream
-// distributions ship their own skill), else the upstream default.
+// Source returns the `skills add` source, allowing env overrides for testing
+// or staging registries.
 func Source() string {
 	if v := os.Getenv(envSource); v != "" {
 		return v
 	}
-	if a := agent.Get(); a != nil {
-		if s := a.Skill().Source; s != "" {
-			return s
-		}
-	}
 	return defaultSource
 }
 
-// Name returns the skill name to install (`-s <name>`), with the same
-// precedence as Source: env, then agent seam, then upstream default.
+// Name returns the skill name to install (`-s <name>`).
 func Name() string {
 	if v := os.Getenv(envName); v != "" {
 		return v
 	}
-	if a := agent.Get(); a != nil {
-		if n := a.Skill().Name; n != "" {
-			return n
-		}
-	}
 	return defaultName
 }
 
-// Installer returns the npm package spec of the `skills` CLI to run through npx
-// (e.g. "@example-scope/skills@latest" for a distribution's own channel), with
-// the same precedence as Source/Name: env, then agent seam, then the public
-// default.
+// Installer returns the npm package spec of the `skills` CLI to run through npx.
 func Installer() string {
 	if v := os.Getenv(envInstaller); v != "" {
 		return v
-	}
-	if a := agent.Get(); a != nil {
-		if i := a.Skill().Installer; i != "" {
-			return i
-		}
 	}
 	return defaultInstaller
 }
 
 // Registry returns the npm registry to resolve Installer from (injected as
-// npm_config_registry; empty keeps the user's npm configuration), with the same
-// precedence as Source/Name: env, then agent seam, then the empty default.
+// npm_config_registry; empty keeps the user's npm configuration).
 func Registry() string {
 	if v := os.Getenv(envRegistry); v != "" {
 		return v
-	}
-	if a := agent.Get(); a != nil {
-		if r := a.Skill().Registry; r != "" {
-			return r
-		}
 	}
 	return defaultRegistry
 }

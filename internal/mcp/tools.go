@@ -25,11 +25,6 @@ func listLimit(count int) int {
 // allSpecs is the full tool catalog before policy filtering. New feature groups are
 // registered here as thin adapters over fork-specific Run functions and volcengine.Client
 // (see database_tools.go).
-//
-// Feature groups excluded by the agent seam are dropped here, before any policy
-// runs: their tools neither register nor validate as --disabled-tools names, so
-// a distribution that cuts a command group (e.g. pages) leaves no trace of it
-// in the MCP surface either.
 func allSpecs() []toolSpec {
 	var specs []toolSpec
 	specs = append(specs, systemTools()...)

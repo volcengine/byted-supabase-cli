@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/go-errors/errors"
-	"github.com/volcengine/byted-supabase-cli/backend"
 )
 
 const supabaseConfigDirectory = "byted_supabase_config"
@@ -192,9 +191,6 @@ func usesPersistentProfileCredentials() bool {
 		strings.TrimSpace(os.Getenv(EnvSecretAccessKey)) != "" ||
 		strings.TrimSpace(os.Getenv(EnvSessionToken)) != "" {
 		return false
-	}
-	if b := backend.Get(); b != nil {
-		return b.UsesPersistentProfileCredentials()
 	}
 	return true
 }

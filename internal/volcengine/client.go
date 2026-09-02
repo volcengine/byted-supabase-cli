@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/go-errors/errors"
-	"github.com/volcengine/byted-supabase-cli/backend"
 	"github.com/volcengine/volcengine-go-sdk/service/aidap"
 	"github.com/volcengine/volcengine-go-sdk/service/vpc"
 	sdk "github.com/volcengine/volcengine-go-sdk/volcengine"
@@ -47,21 +46,11 @@ func newClient(cfg Config, maxRetries *int) *Client {
 	extendRequest := func(ctx context.Context, req *http.Request) {
 		req.Header.Set(HeaderFrom, requestSource)
 	}
-	// An installed control-plane backend may wrap each service's transport so the
-	// signed open-API request is rerouted (e.g. to a multi-cloud proxy) before it is
-	// sent. With no backend registered this is a no-op (direct Volcengine calls).
 	aidapTransport := newTransport()
 	vpcTransport := newTransport()
 	pagesTransport := newTransport()
 	arkTransport := newTransport()
 	iamTransport := newTransport()
-	if b := backend.Get(); b != nil {
-		aidapTransport = b.WrapTransport(aidapServiceName, cfg.Region, aidapTransport)
-		vpcTransport = b.WrapTransport(vpc.ServiceName, cfg.Region, vpcTransport)
-		pagesTransport = b.WrapTransport(pagesServiceName, pagesRegion, pagesTransport)
-		arkTransport = b.WrapTransport(arkServiceName, arkRegion, arkTransport)
-		iamTransport = b.WrapTransport(iamServiceName, cfg.Region, iamTransport)
-	}
 	aidapConfig := sdk.NewConfig().
 		WithCredentials(credentials).
 		WithRegion(cfg.Region).

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/go-errors/errors"
-	"github.com/volcengine/byted-supabase-cli/agent"
 	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 )
 
@@ -44,18 +43,10 @@ var officialFeatures = map[string]bool{
 	featureAuth:        true,
 }
 
-// availableFeatures returns the feature groups that exist in this build: the
-// official set minus any group the registered agent seam excludes (a
-// downstream that cuts a Volcengine-only command group cuts its MCP tools the
-// same way). Computed per call, not at package init, because agent.Set runs
-// during process startup — after this package is initialized.
 func availableFeatures() map[string]bool {
-	a := agent.Get()
 	out := make(map[string]bool, len(officialFeatures))
 	for f := range officialFeatures {
-		if a == nil || a.IncludeMCPFeature(f) {
-			out[f] = true
-		}
+		out[f] = true
 	}
 	return out
 }

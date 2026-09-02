@@ -12,7 +12,6 @@ import (
 
 	"github.com/go-errors/errors"
 	"github.com/spf13/afero"
-	"github.com/volcengine/byted-supabase-cli/backend"
 	"github.com/volcengine/byted-supabase-cli/internal/utils"
 	"github.com/volcengine/volcengine-go-sdk/service/aidap"
 	"github.com/volcengine/volcengine-go-sdk/volcengine/endpoints"
@@ -109,29 +108,6 @@ func loadConfig() (Config, error) {
 		SessionToken:    strings.TrimSpace(os.Getenv(EnvSessionToken)),
 		Region:          RegionSetting(),
 		Endpoint:        firstEnv(EnvLongEndpoint, EnvEndpoint),
-	}
-	// An installed control-plane backend (e.g. a proxy distribution) may supply its
-	// own credentials. When it reports the config handled, skip the normal AK/SK +
-	// profile resolution below.
-	if b := backend.Get(); b != nil {
-		out, handled, err := b.PrepareCredentials(backend.Credentials{
-			AccessKeyID:     cfg.AccessKeyID,
-			SecretAccessKey: cfg.SecretAccessKey,
-			SessionToken:    cfg.SessionToken,
-			Region:          cfg.Region,
-			Endpoint:        cfg.Endpoint,
-		})
-		if err != nil {
-			return Config{}, err
-		}
-		if handled {
-			cfg.AccessKeyID = out.AccessKeyID
-			cfg.SecretAccessKey = out.SecretAccessKey
-			cfg.SessionToken = out.SessionToken
-			cfg.Region = out.Region
-			cfg.Endpoint = out.Endpoint
-			return cfg, nil
-		}
 	}
 	if cfg.AccessKeyID != "" || cfg.SecretAccessKey != "" {
 		if cfg.AccessKeyID == "" {
