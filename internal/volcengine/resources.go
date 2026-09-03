@@ -27,6 +27,7 @@ type DescribeWorkspaceDetailResult struct {
 }
 
 type DescribeAPIKeysParams struct {
+	ProjectName string
 	WorkspaceID string
 	BranchID    string
 	Limit       int
@@ -313,6 +314,7 @@ type APIKey struct {
 	Key        string `json:"Key"`
 	Type       string `json:"Type"`
 	CreateTime string `json:"CreateTime"`
+	ExpireTime string `json:"ExpireTime,omitempty"`
 }
 
 type Branch struct {
@@ -513,18 +515,47 @@ func (c *Client) DescribeAPIKeys(ctx context.Context, params DescribeAPIKeysPara
 	if limit == 0 {
 		limit = maxWorkspaceLimit
 	}
-	req := (&aidap.DescribeAPIKeysInput{}).
-		SetWorkspaceId(params.WorkspaceID).
-		SetLimit(int32(limit)).
-		SetOffset(int32(params.Offset))
-	if params.BranchID != "" {
-		req.SetBranchId(params.BranchID)
+	req := describeAPIKeysRequest{
+		ProjectName: params.ProjectName,
+		WorkspaceID: params.WorkspaceID,
+		BranchID:    params.BranchID,
+		Limit:       limit,
+		Offset:      params.Offset,
 	}
-	resp, err := c.aidap.DescribeAPIKeysWithContext(ctx, req)
-	if err != nil {
+	var resp describeAPIKeysResponse
+	if err := c.callAIDAPUniversal("DescribeAPIKeys", &req, &resp); err != nil {
 		return DescribeAPIKeysResult{}, errors.Errorf("failed to call volcengine DescribeAPIKeys: %w", err)
 	}
-	return mapDescribeAPIKeysResult(resp), nil
+	result := DescribeAPIKeysResult{Total: resp.Total}
+	for _, apiKey := range resp.APIKeys {
+		result.APIKeys = append(result.APIKeys, APIKey{
+			Name:       apiKey.Name,
+			Key:        apiKey.Key,
+			Type:       apiKey.Type,
+			CreateTime: apiKey.CreateTime,
+			ExpireTime: apiKey.ExpireTime,
+		})
+	}
+	return result, nil
+}
+
+type describeAPIKeysRequest struct {
+	ProjectName string `json:"ProjectName,omitempty"`
+	WorkspaceID string `json:"WorkspaceId"`
+	BranchID    string `json:"BranchId,omitempty"`
+	Limit       int    `json:"Limit,omitempty"`
+	Offset      int    `json:"Offset,omitempty"`
+}
+
+type describeAPIKeysResponse struct {
+	Total   int `json:"Total"`
+	APIKeys []struct {
+		CreateTime string `json:"CreateTime"`
+		ExpireTime string `json:"ExpireTime"`
+		Key        string `json:"Key"`
+		Name       string `json:"Name"`
+		Type       string `json:"Type"`
+	} `json:"APIKeys"`
 }
 
 func (c *Client) DescribeOperations(ctx context.Context, params DescribeOperationsParams) (DescribeOperationsResult, error) {

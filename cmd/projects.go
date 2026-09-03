@@ -205,6 +205,7 @@ var (
 				return err
 			}
 			return apiKeys.RunVolcengine(ctx, apiKeys.RunVolcengineParams{
+				ProjectName: volcProjectName,
 				WorkspaceID: flags.ProjectRef,
 				BranchID:    volcBranchID,
 				Fsys:        afero.NewOsFs(),
@@ -625,6 +626,7 @@ func init() {
 	markFlagTelemetrySafe(apiKeysFlags.Lookup("project-ref"))
 	apiKeysFlags.StringVar(&flags.ProjectRef, "workspace-id", "", "Workspace ID of the Volcengine Supabase project. Defaults to linked project if omitted.")
 	markFlagTelemetrySafe(apiKeysFlags.Lookup("workspace-id"))
+	apiKeysFlags.StringVar(&volcProjectName, "project-name", "", "Volcengine ProjectName sent to the AI Gateway API.")
 	apiKeysFlags.StringVar(&volcBranchID, "branch-id", "", "Branch ID of the Volcengine Supabase workspace.")
 
 	operationsFlags := projectsOperationsCmd.Flags()
@@ -659,22 +661,6 @@ func init() {
 	workspaceSettingsFlags := projectsWorkspaceSettingsCmd.Flags()
 	workspaceSettingsFlags.IntVar(&retentionHours, "history-retention-hours", 0, "History retention hours.")
 
-	// Add commands to root
-	projectsCmd.AddCommand(projectsCreateCmd)
-	projectsCmd.AddCommand(projectsDeleteCmd)
-	projectsCmd.AddCommand(projectsListCmd)
-	projectsCmd.AddCommand(projectsOverviewCmd)
-	projectsCmd.AddCommand(projectsApiKeysCmd)
-	projectsCmd.AddCommand(projectsOperationsCmd)
-	projectsCmd.AddCommand(projectsStartCmd)
-	projectsCmd.AddCommand(projectsStopCmd)
-	projectsCmd.AddCommand(projectsRenameCmd)
-	projectsCmd.AddCommand(projectsDeletionProtectionCmd)
-	projectsCmd.AddCommand(projectsCreateTagsCmd)
-	projectsCmd.AddCommand(projectsDeleteTagsCmd)
-	projectsCmd.AddCommand(projectsComputeSettingsCmd)
-	projectsCmd.AddCommand(projectsWorkspaceSettingsCmd)
-	rootCmd.AddCommand(projectsCmd)
 }
 
 func validateVolcenginePageFlags(limit, offset int, allowZeroLimit bool) error {

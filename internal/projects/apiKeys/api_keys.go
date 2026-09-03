@@ -26,11 +26,13 @@ import (
 )
 
 type RunVolcengineParams struct {
+	ProjectName string
 	WorkspaceID string
 	BranchID    string
 	Limit       int
 	Offset      int
 	Fsys        afero.Fs
+	Reveal      bool
 }
 
 func Run(ctx context.Context, projectRef string, fsys afero.Fs) error {
@@ -81,6 +83,7 @@ func RunVolcengine(ctx context.Context, params RunVolcengineParams) error {
 		branchID = branch.BranchID
 	}
 	result, err := client.DescribeAPIKeys(ctx, volcengine.DescribeAPIKeysParams{
+		ProjectName: params.ProjectName,
 		WorkspaceID: workspace.WorkspaceID,
 		BranchID:    branchID,
 		Limit:       params.Limit,
@@ -96,11 +99,25 @@ func RunVolcengine(ctx context.Context, params RunVolcengineParams) error {
 |-|-|
 `
 		for _, entry := range keys {
-			table += fmt.Sprintf("|`%s`|`%s`|\n", strings.ReplaceAll(entry.Name, "|", "\\|"), entry.Key)
+			key := entry.Key
+			if !params.Reveal {
+				key = maskSecret(key)
+			}
+			table += fmt.Sprintf("|`%s`|`%s`|\n", strings.ReplaceAll(entry.Name, "|", "\\|"), key)
 		}
 		return utils.RenderTable(table)
 	case utils.OutputToml, utils.OutputEnv:
+		if !params.Reveal {
+			for i := range keys {
+				keys[i].Key = maskSecret(keys[i].Key)
+			}
+		}
 		return utils.EncodeOutput(utils.OutputFormat.Value, os.Stdout, toVolcengineEnv(keys))
+	}
+	if !params.Reveal {
+		for i := range keys {
+			keys[i].Key = maskSecret(keys[i].Key)
+		}
 	}
 	return utils.EncodeOutput(utils.OutputFormat.Value, os.Stdout, keys)
 }
@@ -137,6 +154,7 @@ type volcengineAPIKey struct {
 	Key        string `json:"api_key" toml:"api_key" yaml:"api_key"`
 	Type       string `json:"type" toml:"type" yaml:"type"`
 	CreateTime string `json:"created_at" toml:"created_at" yaml:"created_at"`
+	ExpireTime string `json:"expire_at,omitempty" toml:"expire_at,omitempty" yaml:"expire_at,omitempty"`
 }
 
 func mapVolcengineAPIKeys(keys []volcengine.APIKey) []volcengineAPIKey {
@@ -151,6 +169,7 @@ func mapVolcengineAPIKeys(keys []volcengine.APIKey) []volcengineAPIKey {
 			Key:        key.Key,
 			Type:       key.Type,
 			CreateTime: key.CreateTime,
+			ExpireTime: key.ExpireTime,
 		})
 	}
 	return result
@@ -176,6 +195,13 @@ func toVolcengineEnv(keys []volcengineAPIKey) map[string]string {
 		envs[fmt.Sprintf("SUPABASE_%s_KEY", name)] = entry.Key
 	}
 	return envs
+}
+
+func maskSecret(value string) string {
+	if len(value) <= 8 {
+		return "******"
+	}
+	return value[:4] + "..." + value[len(value)-4:]
 }
 
 func findSupabaseWorkspace(ctx context.Context, cfgSet volcengine.ConfigSet, workspaceID string) (volcengine.Workspace, volcengine.Config, error) {

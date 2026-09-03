@@ -3,8 +3,10 @@ package cmd
 import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
+	testpkg "github.com/volcengine/byted-supabase-cli/internal/db/test"
 	"github.com/volcengine/byted-supabase-cli/internal/test/new"
 	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 )
 
 var (
@@ -16,8 +18,10 @@ var (
 
 	testDbCmd = &cobra.Command{
 		Use:   "db [path] ...",
-		Short: dbTestCmd.Short,
-		RunE:  dbTestCmd.RunE,
+		Short: "Tests local database with pgTAP",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return testpkg.Run(cmd.Context(), args, flags.DbConfig, afero.NewOsFs())
+		},
 	}
 
 	template = utils.EnumFlag{

@@ -73,6 +73,7 @@ var (
 	}
 
 	migrationVersion string
+	includeAll       bool
 
 	migrationSquashCmd = &cobra.Command{
 		Use:   "squash",

@@ -103,14 +103,27 @@ func TestPagesCommandsAreVolcengineManagementCommands(t *testing.T) {
 }
 
 func TestVolcengineRemoteDataPlaneCommands(t *testing.T) {
-	for _, cmd := range []*cobra.Command{
-		dbQueryCmd,
-		dbConnectionStringCmd,
-		dbDumpCmd,
-		dbPullCmd,
-		dbAdvisorsCmd,
-		genTypesCmd,
+	gen := newGenCommand(defaultRuntimeContext())
+	genTypes, _, err := gen.Find([]string{"types"})
+	require.NoError(t, err)
+
+	db := newDBCommand(defaultRuntimeContext())
+	dbCommands := make([]*cobra.Command, 0, 6)
+	for _, path := range [][]string{
+		{"query"},
+		{"connection-string"},
+		{"dump"},
+		{"pull"},
+		{"advisors"},
+		{"api-config", "get"},
 	} {
+		command, _, findErr := db.Find(path)
+		require.NoError(t, findErr)
+		dbCommands = append(dbCommands, command)
+	}
+
+	dbCommands = append(dbCommands, genTypes)
+	for _, cmd := range dbCommands {
 		assert.True(t, isVolcengineRemoteDataPlaneCommand(cmd), cmd.Name())
 	}
 }

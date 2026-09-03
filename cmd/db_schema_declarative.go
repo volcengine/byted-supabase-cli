@@ -45,6 +45,7 @@ var (
 	declarativeApply     bool
 	declarativeFile      string
 	declarativeName      string
+	schema               []string
 
 	// dbSchemaCmd groups schema-related subcommands under `byted-supabase-cli db schema`.
 	dbSchemaCmd = &cobra.Command{
@@ -487,8 +488,4 @@ func init() {
 	dbDeclarativeCmd.AddCommand(dbDeclarativeSyncCmd)
 	dbDeclarativeCmd.AddCommand(dbDeclarativeGenerateCmd)
 	dbSchemaCmd.AddCommand(dbDeclarativeCmd)
-	// Declarative schema workflows depend on pg-delta, local/shadow database
-	// setup, and migration state. Volcengine CLI does not register this command
-	// group until those workflows are explicitly supported.
-	// dbCmd.AddCommand(dbSchemaCmd)
 }

@@ -99,6 +99,8 @@ func isVolcengineManagementCommand(cmd *cobra.Command) bool {
 		}
 	}
 	switch cmd.Parent().Name() {
+	case "ai-gateway":
+		return true
 	case "projects":
 		switch cmd.Name() {
 		case "api-keys", "compute-settings", "create", "create-tags", "delete", "delete-tags", "deletion-protection", "list", "operations", "overview", "rename", "start", "stop", "workspace-settings":
@@ -185,40 +187,73 @@ func hasCommandAncestor(cmd *cobra.Command, name string) bool {
 }
 
 func isVolcengineRemoteDataPlaneCommand(cmd *cobra.Command) bool {
-	return cmd == dbQueryCmd ||
-		cmd == dbConnectionStringCmd ||
-		cmd == dbDumpCmd ||
-		cmd == dbPullCmd ||
-		cmd == dbAdvisorsCmd ||
-		cmd == genTypesCmd ||
+	if hasCommandAncestor(cmd, "db") {
+		switch cmd.Name() {
+		case "connection-string", "query", "advisors", "api-config", "get", "set", "dump", "pull":
+			return true
+		}
+	}
+	return cmd.Name() == "types" && hasCommandAncestor(cmd, "gen") ||
 		isVolcengineInspectCommand(cmd) ||
-		cmd == lsCmd ||
-		cmd == cpCmd ||
-		cmd == rmCmd ||
-		cmd == mvCmd ||
-		cmd == storageBucketsListCmd ||
-		cmd == storageBucketsGetCmd ||
-		cmd == storageBucketsCreateCmd ||
-		cmd == storageBucketsUpdateCmd ||
-		cmd == storageBucketsDeleteCmd ||
-		cmd == bucketsCmd ||
-		cmd == functionsListCmd ||
-		cmd == functionsDeleteCmd ||
-		cmd == functionsDownloadCmd ||
-		cmd == functionsDeployCmd ||
-		cmd == secretsListCmd ||
-		cmd == secretsSetCmd ||
-		cmd == secretsUnsetCmd ||
-		cmd == authConfigGetCmd ||
-		cmd == authConfigSetCmd ||
-		cmd == authHooksGetCmd ||
-		cmd == authHooksSetCmd ||
-		cmd == authTPListCmd ||
-		cmd == authTPAddCmd ||
-		cmd == authTPRemoveCmd ||
-		cmd == authTPSyncCmd ||
-		cmd == dbAPIConfigGetCmd ||
-		cmd == dbAPIConfigSetCmd
+		isVolcengineStorageCommand(cmd) ||
+		isVolcengineFunctionsCommand(cmd) ||
+		isVolcengineSecretsCommand(cmd) ||
+		isVolcengineAuthCommand(cmd)
+}
+
+func isVolcengineStorageCommand(cmd *cobra.Command) bool {
+	if cmd.Parent() == nil {
+		return false
+	}
+	if cmd.Parent().Name() == "storage" {
+		switch cmd.Name() {
+		case "ls", "cp", "rm", "mv":
+			return true
+		}
+	}
+	return cmd.Parent().Parent() != nil &&
+		cmd.Parent().Parent().Name() == "storage" &&
+		cmd.Parent().Name() == "buckets"
+}
+
+func isVolcengineSecretsCommand(cmd *cobra.Command) bool {
+	if cmd.Parent() == nil || cmd.Parent().Name() != "secrets" {
+		return false
+	}
+	switch cmd.Name() {
+	case "list", "set", "unset":
+		return true
+	default:
+		return false
+	}
+}
+
+func isVolcengineSeedCommand(cmd *cobra.Command) bool {
+	return cmd.Parent() != nil && cmd.Parent().Name() == "seed" && cmd.Name() == "buckets"
+}
+
+func isVolcengineFunctionsCommand(cmd *cobra.Command) bool {
+	if cmd.Parent() == nil || cmd.Parent().Name() != "functions" {
+		return false
+	}
+	switch cmd.Name() {
+	case "list", "delete", "download", "deploy":
+		return true
+	default:
+		return false
+	}
+}
+
+func isVolcengineAuthCommand(cmd *cobra.Command) bool {
+	if !hasCommandAncestor(cmd, "auth") {
+		return false
+	}
+	switch cmd.Name() {
+	case "get", "set", "list", "add", "remove", "sync":
+		return true
+	default:
+		return false
+	}
 }
 
 func printVolcengineDebugProfile() {
@@ -245,7 +280,6 @@ var experimental = []*cobra.Command{
 	// bansCmd,
 	vanityCmd,
 	sslEnforcementCmd,
-	genKeysCmd,
 	postgresCmd,
 	dbDeclarativeCmd,
 }
@@ -588,7 +622,6 @@ func init() {
 	cobra.CheckErr(flags.MarkHidden("dns-resolver"))
 
 	rootCmd.SetVersionTemplate("{{.Version}}\n")
-	rootCmd.AddGroup(&cobra.Group{ID: groupQuickStart, Title: "Quick Start:"})
 	rootCmd.AddGroup(&cobra.Group{ID: groupLocalDev, Title: "Local Development:"})
 	rootCmd.AddGroup(&cobra.Group{ID: groupManagementAPI, Title: "Management APIs:"})
 }
