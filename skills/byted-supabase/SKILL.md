@@ -50,7 +50,7 @@ metadata:
 暂停后的实例**无法靠客户 IO / 访问流量自动唤醒**（这与分支休眠的「访问即唤醒」**本质不同**）——整个 workspace 及其下**所有分支**停服，REST / Auth / Storage / 直连 DB **全部不可达**，必须由人**手动** `projects start` 才能恢复。因此执行 `projects stop` 前**必须**：
 > 1. **向用户明确复述影响并取得二次确认**——「这会停掉整个 workspace `<ref>`，期间客户业务完全不可用、且不会自动恢复，确认吗？」
 > 2. **核对目标 `ref` 无误**，绝不停错 workspace；
-> 3. **绝不**把它当作「重启 / 休眠 / 省资源」的手段——重启用 `branches restart`，休眠是平台自动行为，二者都**不会**导致业务停服。
+> 3. **绝不**把它当作「重启 / 休眠 / 省资源」的手段——workspace 休眠/唤醒用 `projects sleep`/`projects wake`，算力重启/自动休眠配置用 `computes restart`/`projects settings`，二者都**不会**等同于 workspace 暂停。
 >
 > （`projects delete` 同属不可逆高危操作，同样需先确认。）
 
@@ -162,8 +162,10 @@ export VOLCENGINE_SESSION_TOKEN=<token>    # 可选：使用临时凭据时才�
 | 列出 workspace | `projects list` |
 | workspace 详情 / 概览 | `projects list --workspace-id ws-... --detail` ／ `projects overview` |
 | 创建 workspace | `projects create <name>`（region 走全局/env/profile）。**创建成功后必须主动说明休眠超时并非阻塞询问**，见下方「💤 休眠超时」 |
-| 调整算力 / 休眠超时 | `projects compute-settings <ref> --min-cu <n> --max-cu <n> [--suspend-timeout-seconds <秒>]`（底层 ModifyComputeSettings；**设休眠超时用 `--service-type Supabase --min-cu 0.5`**，见下方💤）。**改完不要用 `projects list --detail` 校验是否生效**——那里的算力字段是 Database 服务的值，改的是 Supabase 服务会显示"未变"；正确校验用 `computes list --workspace-id <ref> --service-type Supabase -o json`，见 [tool-reference](references/tool-reference.md) |
-| ⛔ 暂停 / 恢复**整个 workspace**（停机/开机，**高危**，见[核心原则 5](#核心原则)） | `projects stop <ref>` ／ `projects start <ref>` |
+| 配置算力自动休眠 | `projects settings compute <ref> --min-cu <n> --max-cu <n> [--suspend-timeout-seconds <秒>]`（底层 ModifyComputeSettings；**设置算力自动休眠超时用 `--service-type Supabase --min-cu 0.5`**，见下方💤）。该命令只修改配置，不会立即让 workspace 或 compute 进入休眠。 |
+| 立即休眠整个 workspace | `projects sleep --workspace-id <workspace-id> --yes`（底层 SuspendWorkspace；这是 workspace 休眠，不是暂停） |
+| 唤醒休眠 workspace | `projects wake --workspace-id <workspace-id> --yes`（先调用 DescribeWorkspaceEndpoint 获取 `AddressDomain`，再访问一次 Supabase 实例触发唤醒） |
+| ⛔ 暂停 / 恢复**整个 workspace**（停机/开机，**高危**，见[核心原则 5](#核心原则)） | `projects stop --workspace-id <workspace-id>` ／ `projects start --workspace-id <workspace-id>` |
 | 删除 workspace | `projects delete <ref> --yes` |
 | 获取 API Keys | `projects api-keys --workspace-id ws-...` |
 | 获取访问地址 / 连接串 | `endpoints list --workspace-id ws-...` ／ `db connection-string --workspace-id ws-...` |
@@ -171,7 +173,7 @@ export VOLCENGINE_SESSION_TOKEN=<token>    # 可选：使用临时凭据时才�
 > **💤 休眠超时（SuspendTimeoutSeconds）—— 创建后务必主动说明、非阻塞询问。**
 > - **含义**：分支算力**无流量自动休眠（scale-to-zero）前的空闲等待秒数**。到点自动休眠，下次访问 exposeURL（或任意请求）即**自动唤醒**（冷启动）——这是「休眠」而**非**「暂停 workspace」（区别见[下方辨析](#分支branch)与[核心原则 5](#核心原则)）。
 > - **取值语义**：`-1` = 显式关闭自动休眠（算力常驻 / 永不休眠）；`0` = 未设置的平台默认（行为上等同常驻）；`300`–`604800` 秒（5 分钟–7 天）= 启用，空闲到点休眠。**新建 workspace 默认不休眠**（`projects list --detail` 显示为 `0`）。想**关闭**已开启的自动休眠就传 `-1`（不是 `0`）。
-> - **修改方式**：`projects compute-settings <ref> --service-type Supabase --min-cu 0.5 --max-cu 2 --suspend-timeout-seconds <秒> --yes`。⚠️ 必带 `--yes` + `--min-cu`/`--max-cu`，且 Supabase 服务 min CU 下限 0.5——这几个坑照抄即可，细节见 [tool-reference 的「💤 休眠超时」](references/tool-reference.md)。
+> - **修改方式**：`projects settings compute <ref> --service-type Supabase --min-cu 0.5 --max-cu 2 --suspend-timeout-seconds <秒> --yes`。⚠️ 必带 `--yes` + `--min-cu`/`--max-cu`，且 Supabase 服务 min CU 下限 0.5——这几个坑照抄即可，细节见 [tool-reference 的「💤 休眠超时」](references/tool-reference.md)。
 > - **创建后协议（非阻塞）**：`projects create` 成功后，**主动向用户解释**上面的含义并**非阻塞地**提示是否设置休眠超时，可直接用这段话：「关于空闲休眠：当前算力常驻、不会自动休眠—稳定但更耗资源。如果想节省算力，可配置空闲自动休眠时间（再次访问无需手动操作，Supabase 自动唤醒），推荐 1 小时。」**推荐 1 小时（`--suspend-timeout-seconds 3600`）**；用户没回应或表示不需要就保持默认不休眠，**不要因此卡住或阻塞**后续流程。
 
 ### 分支（branch）
@@ -180,11 +182,13 @@ export VOLCENGINE_SESSION_TOKEN=<token>    # 可选：使用临时凭据时才�
 |------|------|
 | 列出 / 创建 / 删除分支 | `branches list` ／ `branches create <name>` ／ `branches delete <branch-id>` |
 | 查看 / 设默认分支 | `branches get <id>` ／ `branches get-default` ／ `branches set-default <id>` |
-| **重启**分支算力（reboot）/ 时间点恢复 | `branches restart <id>` ／ `branches restore <id> --restore-time <ts>` |
+| **重启**分支算力（reboot）/ 时间点恢复 | `computes restart <branch-id> [--compute-id <compute-id>]` ／ `branches restore <id> --restore-time <ts>` |
 
 > **⚠️ 暂停 / 重启 / 休眠 三者别混淆**（最常见的误判）：
-> - **重启**分支算力（"重启""reboot""重启算力"）→ `branches restart <id>`，一条命令搞定；**切勿**用 `projects stop` + `projects start` 模拟（那是整个 workspace 停机再开机）。
-> - **休眠 / 唤醒** = 分支算力的**平台自动行为**：空闲到点自动 scale-to-zero、访问即自动唤醒（**无需手动命令**）；阈值可配，详见上方[💤 休眠超时](#工作区workspace--project)。想手动重置算力用 `branches restart`，**别用 `projects stop` 代替**。
+> - **重启**分支算力（"重启""reboot""重启算力"）→ `computes restart <id> [--compute-id <compute-id>]`，底层 `RestartBranch`；**切勿**用 `projects stop` + `projects start` 模拟（那是整个 workspace 停机再开机）。
+> - **workspace 休眠** = `projects sleep`，调用 `SuspendWorkspace`，让整个 workspace 进入休眠；**不要**用 `projects stop` 代替。
+> - **workspace 唤醒** = `projects wake`，先通过 `DescribeWorkspaceEndpoint` 获取 `AddressDomain`，再访问 Supabase 实例一次触发唤醒；不要用 `projects start`，后者对应显式暂停后的恢复。
+> - **算力自动休眠** = 通过 `projects settings` 设置 `SuspendTimeoutSeconds`，由平台按空闲时间自动执行；这不是算力重启，也不是立即 workspace 休眠。
 > - **⛔ 暂停 / 恢复** = **workspace 级**停机/开机（`projects stop` / `projects start`），影响其下**所有分支**。**高危红线**：停后客户业务彻底不可用且**无法靠 IO 自动唤醒**，必须人工 `projects start`——执行 `projects stop` 前务必复述影响并二次确认（详见[核心原则 5](#核心原则)）。
 >
 > 一句话记忆：**休眠/重启 → 客户访问能自愈或单命令恢复（低危）；暂停 → 客户访问救不回来，只能人工 start（高危，先确认）。**

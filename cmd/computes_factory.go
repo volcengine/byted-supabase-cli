@@ -10,6 +10,7 @@ import (
 	"github.com/go-errors/errors"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
+	branchmanage "github.com/volcengine/byted-supabase-cli/internal/branches/manage"
 	computedescribe "github.com/volcengine/byted-supabase-cli/internal/computes/describe"
 	computemanage "github.com/volcengine/byted-supabase-cli/internal/computes/manage"
 	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
@@ -37,7 +38,40 @@ func newComputesCommand(ctx RuntimeContext) *cobra.Command {
 		newComputesListCommand(ctx),
 		newComputesGetCommand(ctx),
 		newComputesUpdateCommand(ctx),
+		newComputesRestartCommand(ctx),
 	)
+	return cmd
+}
+
+func newComputesRestartCommand(ctx RuntimeContext) *cobra.Command {
+	parent := &computesOptions{}
+	var branchID string
+	var computeIDs []string
+	cmd := &cobra.Command{
+		Use:   "restart [branch-id]",
+		Short: "Restart branch compute",
+		Args:  cobra.MaximumNArgs(1),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			if !term.IsTerminal(int(os.Stdin.Fd())) && len(args) == 0 && !cmd.Flags().Changed("branch-id") {
+				return errors.New("missing branch id. Supply computes restart [branch-id] or --branch-id.")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := prepareComputesWorkspace(cmd, ctx.FS, parent, "Which project do you want to restart compute for?"); err != nil {
+				return err
+			}
+			if len(args) > 0 {
+				branchID = strings.TrimSpace(args[0])
+			}
+			return branchmanage.RunRestart(cmd.Context(), branchmanage.BranchActionParams{
+				WorkspaceID: parent.WorkspaceID, BranchID: branchID, ComputeIDs: computeIDs,
+			})
+		},
+	}
+	cmd.Flags().StringVar(&branchID, "branch-id", "", "Branch ID whose compute should be restarted.")
+	cmd.Flags().StringArrayVar(&computeIDs, "compute-id", nil, "Compute ID to restart. Can be specified multiple times.")
+	addComputesWorkspaceFlags(cmd, parent)
 	return cmd
 }
 

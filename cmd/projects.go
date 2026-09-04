@@ -490,8 +490,8 @@ var (
 	}
 
 	projectsComputeSettingsCmd = &cobra.Command{
-		Use:   "compute-settings [ref/workspace-id]",
-		Short: "Modify compute settings for a Volcengine Supabase workspace",
+		Use:   "settings [ref/workspace-id]",
+		Short: "Configure workspace compute and auto-sleep settings",
 		Args:  cobra.MaximumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := requireVolcengineMutationArgs(cmd, args); err != nil {
@@ -553,7 +553,7 @@ var (
 
 	projectsWorkspaceSettingsCmd = &cobra.Command{
 		Use:   "workspace-settings [ref/workspace-id]",
-		Short: "Modify workspace settings for a Volcengine Supabase workspace",
+		Short: "Configure workspace history retention",
 		Args:  cobra.MaximumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := requireVolcengineMutationArgs(cmd, args); err != nil {

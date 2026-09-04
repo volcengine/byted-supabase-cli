@@ -15,12 +15,8 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"net/http"
-	"net/url"
 	"os"
-	"os/signal"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -28,14 +24,28 @@ import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/volcengine/byted-supabase-cli/internal/debug"
-	"github.com/volcengine/byted-supabase-cli/internal/skills"
+	"github.com/volcengine/byted-supabase-cli/cmd/bootstrap"
+	"github.com/volcengine/byted-supabase-cli/cmd/policy"
+	"github.com/volcengine/byted-supabase-cli/cmd/runtime"
+	commandtree "github.com/volcengine/byted-supabase-cli/cmd/tree"
 	"github.com/volcengine/byted-supabase-cli/internal/telemetry"
-	"github.com/volcengine/byted-supabase-cli/internal/update"
 	"github.com/volcengine/byted-supabase-cli/internal/utils"
 	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 )
+
+func init() {
+	rootCmd = bootstrap.BuildRootCommand(bootstrap.Options{
+		NewRoot:   newRootCommand,
+		Configure: configureRootCommand,
+		Assemble: func(root *cobra.Command) {
+			assembleRootCommand(root, commandtree.DefaultRuntimeContext())
+		},
+	})
+	bootstrap.AttachLifecycle(rootCmd, func(_ context.Context, cmd *cobra.Command, args []string) error {
+		return runtime.RunPreflight(rootPersistentPreRunE, cmd, args)
+	})
+}
 
 const (
 	groupQuickStart    = "quick-start"
@@ -44,17 +54,7 @@ const (
 )
 
 func IsManagementAPI(cmd *cobra.Command) bool {
-	for cmd != cmd.Root() {
-		if cmd.GroupID == groupManagementAPI {
-			return true
-		}
-		// Find the last assigned group
-		if len(cmd.GroupID) > 0 {
-			break
-		}
-		cmd = cmd.Parent()
-	}
-	return false
+	return policy.IsManagementAPI(cmd)
 }
 
 func promptLogin(ctx context.Context, cmd *cobra.Command, fsys afero.Fs) error {
@@ -89,9 +89,12 @@ func promptLogin(ctx context.Context, cmd *cobra.Command, fsys afero.Fs) error {
 }
 
 func isVolcengineManagementCommand(cmd *cobra.Command) bool {
-	if cmd.Parent() == nil {
-		return false
-	}
+	return policy.IsManagementCommand(cmd, policy.ClassificationHooks{
+		ManagementExtra: isVolcengineManagementCommandExtra,
+	})
+}
+
+func isVolcengineManagementCommandExtra(cmd *cobra.Command) bool {
 	if hasCommandAncestor(cmd, "pages") {
 		switch cmd.Name() {
 		case "bind", "binding", "create", "deploy", "env-vars", "list", "sync", "unbind", "upload":
@@ -103,7 +106,7 @@ func isVolcengineManagementCommand(cmd *cobra.Command) bool {
 		return true
 	case "projects":
 		switch cmd.Name() {
-		case "api-keys", "compute-settings", "create", "create-tags", "delete", "delete-tags", "deletion-protection", "list", "operations", "overview", "rename", "start", "stop", "workspace-settings":
+		case "api-keys", "create", "create-tags", "delete", "delete-tags", "deletion-protection", "list", "operations", "overview", "rename", "settings", "sleep", "start", "stop", "wake", "workspace-settings":
 			return true
 		}
 	case "branches":
@@ -113,7 +116,7 @@ func isVolcengineManagementCommand(cmd *cobra.Command) bool {
 		}
 	case "computes":
 		switch cmd.Name() {
-		case "get", "list", "update":
+		case "get", "list", "restart", "settings", "update":
 			return true
 		}
 	case "network-restrictions":
@@ -187,6 +190,12 @@ func hasCommandAncestor(cmd *cobra.Command, name string) bool {
 }
 
 func isVolcengineRemoteDataPlaneCommand(cmd *cobra.Command) bool {
+	return policy.IsRemoteDataCommand(cmd, policy.ClassificationHooks{
+		RemoteDataExtra: isVolcengineRemoteDataPlaneCommandExtra,
+	})
+}
+
+func isVolcengineRemoteDataPlaneCommandExtra(cmd *cobra.Command) bool {
 	if hasCommandAncestor(cmd, "db") {
 		switch cmd.Name() {
 		case "connection-string", "query", "advisors", "api-config", "get", "set", "dump", "pull":
@@ -307,148 +316,25 @@ var (
 	createTicket bool
 	rootProfile  string
 
-	rootCmd = &cobra.Command{
-		Use:     "byted-supabase-cli",
-		Short:   "Byted Supabase CLI " + utils.Version,
-		Version: utils.Version,
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			if IsExperimental(cmd) && !viper.GetBool("EXPERIMENTAL") {
-				return errors.New("must set the --experimental flag to run this command")
-			}
-			cmd.SilenceUsage = true
-			// Load profile before changing workdir
-			ctx, _ := signal.NotifyContext(cmd.Context(), os.Interrupt)
-			fsys := afero.NewOsFs()
-			isVolcengineRemoteDataPlane := isVolcengineRemoteDataPlaneCommand(cmd)
-			isVolcengineCommand := isVolcengineManagementCommand(cmd) || isVolcengineRemoteDataPlane
-			if !isVolcengineCommand {
-				if err := utils.LoadProfile(ctx, fsys); err != nil {
-					return err
-				}
-			}
-			if err := utils.ChangeWorkDir(fsys); err != nil {
-				return err
-			}
-			if profileFlag := cmd.Root().PersistentFlags().Lookup("profile"); profileFlag != nil && profileFlag.Changed {
-				volcengine.SetProfileOverride(rootProfile)
-			}
-			volcengine.SetRegionOverride(volcRegion)
-			// Add common flags
-			if IsManagementAPI(cmd) {
-				if err := promptLogin(ctx, cmd, fsys); err != nil {
-					return err
-				}
-				if cmd.Flags().Lookup("project-ref") != nil && !isVolcengineManagementCommand(cmd) {
-					if err := flags.ParseProjectRef(ctx, fsys); err != nil {
-						return err
-					}
-				}
-			}
-			// Volcengine remote data-plane commands resolve linked/project targets
-			// with AIDAP. Explicit DB URLs retain the original parser.
-			if !isVolcengineRemoteDataPlane || cmd.Flags().Changed("db-url") {
-				if err := flags.ParseDatabaseConfig(ctx, cmd.Flags(), fsys); err != nil {
-					return err
-				}
-			}
-			// Prepare context
-			if viper.GetBool("DEBUG") {
-				http.DefaultTransport = debug.NewTransport()
-				fmt.Fprintln(os.Stderr, cmd.Root().Short)
-				if isVolcengineCommand {
-					printVolcengineDebugProfile()
-				} else {
-					fmt.Fprintf(os.Stderr, "Using profile: %s (%s)\n", utils.CurrentProfile.Name, utils.CurrentProfile.ProjectHost)
-				}
-			}
-			isTTY := telemetryIsTTY()
-			isCI := telemetryIsCI()
-			isAgent := telemetryIsAgent()
-			envSignals := telemetryEnvSignals()
-			service, err := telemetry.NewService(fsys, telemetry.Options{
-				Now:        time.Now,
-				IsTTY:      isTTY,
-				IsCI:       isCI,
-				IsAgent:    isAgent,
-				EnvSignals: envSignals,
-				CLIName:    utils.Version,
-			})
-			if err != nil {
-				fmt.Fprintln(utils.GetDebugLogger(), err)
-			} else {
-				ctx = telemetry.WithService(ctx, service)
-			}
-			if service != nil {
-				var stitchOnce sync.Once
-				utils.OnGotrueID = func(gotrueID string) {
-					if service.NeedsIdentityStitch() {
-						stitchOnce.Do(func() {
-							if err := service.StitchLogin(gotrueID); err != nil {
-								fmt.Fprintln(utils.GetDebugLogger(), err)
-							}
-						})
-					}
-				}
-			}
-			ctx = telemetry.WithCommandContext(ctx, commandAnalyticsContext(cmd))
-			cmd.SetContext(ctx)
-			// Setup sentry last to ignore errors from parsing cli flags
-			apiHost, err := url.Parse(utils.GetSupabaseAPIHost())
-			if err != nil {
-				return err
-			}
-			sentryOpts.Environment = apiHost.Host
-			return sentry.Init(sentryOpts)
-		},
-		SilenceErrors: true,
-	}
+	rootCmd *cobra.Command
 )
 
+func newRootCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:               "byted-supabase-cli",
+		Short:             "Byted Supabase CLI " + utils.Version,
+		Version:           utils.Version,
+		PersistentPreRunE: rootPersistentPreRunE,
+		SilenceErrors:     true,
+	}
+}
+
 func Execute() {
-	defer recoverAndExit()
-	startedAt := time.Now()
-	executedCmd, err := rootCmd.ExecuteC()
-	if executedCmd != nil {
-		if service := telemetry.FromContext(executedCmd.Context()); service != nil {
-			ensureProjectGroupsCached(executedCmd.Context(), service)
-			_ = service.Capture(executedCmd.Context(), telemetry.EventCommandExecuted, map[string]any{
-				telemetry.PropExitCode:   exitCode(err),
-				telemetry.PropDurationMs: time.Since(startedAt).Milliseconds(),
-			}, nil)
-			_ = service.Close()
-		}
-	}
-	if err != nil {
-		panic(err)
-	}
-	// Check upgrade last because --version flag is initialised after execute.
-	var version string
-	ctx := rootCmd.Context()
-	if executedCmd != nil {
-		ctx = executedCmd.Context()
-	}
-	if version, err = checkUpgrade(ctx, afero.NewOsFs()); err != nil {
-		fmt.Fprintln(utils.GetDebugLogger(), err)
-	}
-	if hint := utils.SuggestClaudePlugin(); hint != "" {
-		fmt.Fprintln(os.Stderr, hint)
-	}
-	if (executedCmd == nil || executedCmd.Name() != "update") && update.IsNewer(version, utils.Version) {
-		fmt.Fprintln(os.Stderr, suggestUpgrade(version))
-	}
-	// Cheap, network-free skill drift check: if the locally installed
-	// byted-supabase skill was synced for an older CLI version, hint at
-	// `skills install`. Suppressed for the update/skills commands, which sync
-	// the skill themselves.
-	if !skillsNoticeSuppressed(executedCmd) {
-		skills.Init(utils.Version)
-		if n := skills.GetPending(); n != nil {
-			fmt.Fprintln(os.Stderr, n.Message())
-		}
-	}
-	if len(utils.CmdSuggestion) > 0 {
-		fmt.Fprintln(os.Stderr, utils.CmdSuggestion)
-	}
+	executeRootCommand()
+}
+
+func debugEnabled() bool {
+	return viper.GetBool("DEBUG")
 }
 
 // skillsNoticeSuppressed reports whether the executed command (or any ancestor)
@@ -532,98 +418,6 @@ func suggestUpgrade(version string) string {
 	const command = "byted-supabase-cli update"
 	return fmt.Sprintf(`A new version of Byted Supabase CLI is available: %s (currently installed v%s)
 Update with: %s`, utils.Yellow(version), utils.Version, utils.Bold(command))
-}
-
-func recoverAndExit() {
-	err := recover()
-	if err == nil {
-		return
-	}
-	var msg string
-	switch err := err.(type) {
-	case string:
-		msg = err
-	case error:
-		if !errors.Is(err, context.Canceled) &&
-			len(utils.CmdSuggestion) == 0 &&
-			!viper.GetBool("DEBUG") {
-			utils.CmdSuggestion = utils.SuggestDebugFlag
-		}
-		if e, ok := err.(*errors.Error); ok && len(utils.Version) == 0 {
-			fmt.Fprintln(os.Stderr, string(e.Stack()))
-		}
-		msg = err.Error()
-		if details := volcengine.VolcengineErrorDetailsFromErr(err); !details.Empty() {
-			msg = appendVolcengineErrorDetails(msg, details)
-		}
-	default:
-		msg = fmt.Sprintf("%#v", err)
-	}
-	// Log error to console
-	fmt.Fprintln(os.Stderr, utils.Red(msg))
-	if len(utils.CmdSuggestion) > 0 {
-		fmt.Fprintln(os.Stderr, utils.CmdSuggestion)
-	}
-	// Report error to sentry
-	if createTicket && len(utils.SentryDsn) > 0 {
-		sentry.ConfigureScope(addSentryScope)
-		eventId := sentry.CurrentHub().Recover(err)
-		if eventId != nil && sentry.Flush(2*time.Second) {
-			fmt.Fprintln(os.Stderr, "Sent crash report:", *eventId)
-			fmt.Fprintln(os.Stderr, "Quote the crash ID above when filing a bug report: https://github.com/volcengine/byted-supabase-cli/issues/new/choose")
-		}
-	}
-	os.Exit(1)
-}
-
-func appendVolcengineErrorDetails(msg string, details volcengine.ErrorDetails) string {
-	var b strings.Builder
-	b.WriteString(msg)
-	if details.RequestID != "" {
-		fmt.Fprintf(&b, "\nRequest ID: %s", details.RequestID)
-	}
-	if details.StatusCode != "" {
-		fmt.Fprintf(&b, "\nStatus Code: %s", details.StatusCode)
-	}
-	if details.ErrorCode != "" {
-		fmt.Fprintf(&b, "\nError Code: %s", details.ErrorCode)
-	}
-	if details.Message != "" {
-		fmt.Fprintf(&b, "\nMessage: %s", details.Message)
-	}
-	return b.String()
-}
-
-func init() {
-	cobra.OnInitialize(func() {
-		viper.SetEnvPrefix("SUPABASE")
-		viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-		viper.AutomaticEnv()
-	})
-
-	flags := rootCmd.PersistentFlags()
-	flags.Bool("yes", false, "answer yes to all prompts")
-	flags.Bool("debug", false, "output debug logs to stderr")
-	flags.String("workdir", "", "path to a Supabase project directory")
-	flags.Bool("experimental", false, "enable experimental features")
-	flags.String("network-id", "", "use the specified docker network instead of a generated one")
-	flags.StringVar(&rootProfile, "profile", "supabase", "use a specific profile; for Volcengine commands, overrides the current configure profile")
-	flags.Lookup("profile").DefValue = "current"
-	flags.StringVar(&volcRegion, "region", "", "Volcengine region for management API requests.")
-	flags.VarP(&utils.OutputFormat, "output", "o", "output format of status variables")
-	flags.Var(&utils.DNSResolver, "dns-resolver", "lookup domain names using the specified resolver")
-	// Volcengine CLI does not support public support-ticket creation yet.
-	// Keep the original implementation for future integration, but do not expose the flag.
-	// flags.BoolVar(&createTicket, "create-ticket", false, "create a support ticket for any CLI error")
-	flags.VarP(&utils.AgentMode, "agent", "", "Override agent detection: yes, no, or auto (default auto)")
-	cobra.CheckErr(viper.BindPFlags(flags))
-	cobra.CheckErr(flags.MarkHidden("experimental"))
-	cobra.CheckErr(flags.MarkHidden("network-id"))
-	cobra.CheckErr(flags.MarkHidden("dns-resolver"))
-
-	rootCmd.SetVersionTemplate("{{.Version}}\n")
-	rootCmd.AddGroup(&cobra.Group{ID: groupLocalDev, Title: "Local Development:"})
-	rootCmd.AddGroup(&cobra.Group{ID: groupManagementAPI, Title: "Management APIs:"})
 }
 
 // instantiate new rootCmd is a bit tricky with cobra, but it can be done later with the following

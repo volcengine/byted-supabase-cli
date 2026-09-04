@@ -16,7 +16,7 @@ import (
 func TestAccountGroupListed(t *testing.T) {
 	cs := connect(t, Options{Features: []string{featureAccount}})
 	names := listToolNames(t, cs)
-	for _, n := range []string{"list_workspaces", "get_workspace", "create_workspace", "stop_workspace", "start_workspace", "set_workspace_deletion_protection", "delete_workspace"} {
+	for _, n := range []string{"list_workspaces", "get_workspace", "create_workspace", "stop_workspace", "sleep_workspace", "wake_workspace", "start_workspace", "set_workspace_deletion_protection", "delete_workspace"} {
 		assert.True(t, names[n], "expected %s to be listed", n)
 	}
 	// The old names are kept callable as aliases but must NOT be advertised in tools/list.
@@ -33,6 +33,8 @@ func TestAccountReadOnlyHidesMutating(t *testing.T) {
 	// Write tools are hidden.
 	assert.False(t, names["create_workspace"])
 	assert.False(t, names["stop_workspace"])
+	assert.False(t, names["sleep_workspace"])
+	assert.False(t, names["wake_workspace"])
 	assert.False(t, names["start_workspace"])
 	assert.False(t, names["set_workspace_deletion_protection"])
 	assert.False(t, names["delete_workspace"])
@@ -80,7 +82,7 @@ func TestAccountGroupHiddenWhenWorkspaceScoped(t *testing.T) {
 	// When the server is hard-scoped to a single workspace, account-level management is not exposed at all.
 	cs := connect(t, Options{WorkspaceRef: "ws-fixed", Features: []string{featureAccount, featureDatabase}})
 	names := listToolNames(t, cs)
-	for _, n := range []string{"list_workspaces", "get_workspace", "create_workspace", "stop_workspace", "start_workspace", "set_workspace_deletion_protection", "delete_workspace"} {
+	for _, n := range []string{"list_workspaces", "get_workspace", "create_workspace", "stop_workspace", "sleep_workspace", "wake_workspace", "start_workspace", "set_workspace_deletion_protection", "delete_workspace"} {
 		assert.False(t, names[n], "expected %s to be hidden under workspace scope", n)
 	}
 	// Other groups are still available.

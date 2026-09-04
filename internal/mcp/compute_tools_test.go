@@ -20,17 +20,74 @@ func TestComputeToolSpecs(t *testing.T) {
 		byName[s.meta.name] = s.meta
 	}
 
-	require.Len(t, specs, 2)
+	require.Len(t, specs, 3)
 
 	get, ok := byName["get_compute_settings"]
 	require.True(t, ok, "expected get_compute_settings to be defined")
 	assert.Equal(t, featureCompute, get.feature)
 	assert.False(t, get.mutating, "get_compute_settings must be a read tool")
 
-	modify, ok := byName["modify_compute_settings"]
+	modify, ok := byName["compute_settings"]
 	require.True(t, ok, "expected modify_compute_settings to be defined")
 	assert.Equal(t, featureCompute, modify.feature)
 	assert.True(t, modify.mutating, "modify_compute_settings must be mutating")
+	restart, ok := byName["restart_compute"]
+	require.True(t, ok, "expected restart_compute to be defined")
+	assert.Equal(t, featureCompute, restart.feature)
+	assert.True(t, restart.mutating)
+}
+
+func TestRestartComputeRequiresBranchID(t *testing.T) {
+	p := newPolicy(Options{Features: []string{featureCompute}})
+	_, err := restartBranch(context.Background(), &p, restartBranchInput{BranchID: "  "})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "branch_id is required")
+}
+
+func TestComputeAndWorkspaceLifecycleDescriptionsKeepSleepAndStopSeparate(t *testing.T) {
+	computeDescription := ""
+	for _, spec := range computeTools() {
+		if spec.meta.name == "compute_settings" {
+			computeDescription = spec.meta.description
+		}
+	}
+	require.NotEmpty(t, computeDescription)
+	assert.Contains(t, computeDescription, "ModifyComputeSettings")
+	assert.Contains(t, computeDescription, "suspend_timeout_seconds")
+	assert.Contains(t, computeDescription, "does NOT immediately suspend")
+	assert.Contains(t, computeDescription, "suspend_workspace")
+
+	workspaceDescription := ""
+	for _, spec := range accountTools() {
+		if spec.meta.name == "stop_workspace" {
+			workspaceDescription = spec.meta.description
+		}
+	}
+	require.NotEmpty(t, workspaceDescription)
+	assert.Contains(t, workspaceDescription, "StopWorkspace")
+	assert.Contains(t, workspaceDescription, "休眠")
+	assert.Contains(t, workspaceDescription, "NOT compute auto-suspend")
+	suspendDescription := ""
+	for _, spec := range accountTools() {
+		if spec.meta.name == "sleep_workspace" {
+			suspendDescription = spec.meta.description
+		}
+	}
+	require.NotEmpty(t, suspendDescription)
+	assert.Contains(t, suspendDescription, "SuspendWorkspace")
+	assert.Contains(t, suspendDescription, "休眠")
+	assert.NotContains(t, suspendDescription, "StopWorkspace")
+	wakeDescription := ""
+	for _, spec := range accountTools() {
+		if spec.meta.name == "wake_workspace" {
+			wakeDescription = spec.meta.description
+		}
+	}
+	require.NotEmpty(t, wakeDescription)
+	assert.Contains(t, wakeDescription, "DescribeWorkspaceEndpoint")
+	assert.Contains(t, wakeDescription, "AddressDomain")
+	assert.Contains(t, wakeDescription, "HTTP")
+	assert.Contains(t, wakeDescription, "start_workspace")
 }
 
 // TestModifyComputeSettingsRequiresComputeIDForComputeOps verifies that compute-level

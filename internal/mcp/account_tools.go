@@ -32,7 +32,7 @@ func accountTools() []toolSpec {
 			title:       "Create workspace",
 			feature:     featureAccount,
 			mutating:    true,
-			description: "Create a new Supabase workspace. By default auto-suspend is disabled (suspend_timeout_seconds = -1, i.e. compute stays always-on / never suspends); pass suspend_timeout_seconds to set a different value at creation (>=300 to enable auto-suspend, -1 to keep always-on). For Agent Plan, pass is_agent_plan=true without agent_plan_seat_id for personal edition, or pass agent_plan_seat_id for enterprise edition (it implies is_agent_plan=true). Omit both Agent Plan fields to use the current persistent profile default; environment authentication does not use profile defaults. After creation, proactively explain in one line what the auto-suspend idle timeout means and non-blockingly ask whether to set one — recommend 3600s (60 min) to save compute; if the user declines or does not answer, keep the always-on default and do NOT block. It can also be changed later with modify_compute_settings (suspend_timeout_seconds).",
+			description: "Create a new Supabase workspace. By default compute auto-sleep is disabled (suspend_timeout_seconds = -1, i.e. compute stays always-on / never sleeps); pass suspend_timeout_seconds to set a different compute auto-sleep timeout at creation (>=300 to enable, -1 to keep always-on). For Agent Plan, pass is_agent_plan=true without agent_plan_seat_id for personal edition, or pass agent_plan_seat_id for enterprise edition (it implies is_agent_plan=true). Omit both Agent Plan fields to use the current persistent profile default; environment authentication does not use profile defaults. After creation, proactively explain the compute auto-sleep idle timeout and non-blockingly ask whether to set one — recommend 3600s (60 min); if the user declines or does not answer, keep the always-on default and do NOT block. It can also be changed later with compute_settings (suspend_timeout_seconds).",
 		}, createWorkspace),
 		defineTool(meta{
 			name:        "stop_workspace",
@@ -40,15 +40,30 @@ func accountTools() []toolSpec {
 			aliases:     []string{"pause_workspace"},
 			feature:     featureAccount,
 			mutating:    true,
-			description: "Stop (pause) a running Supabase workspace, matching the CLI `projects stop`. Only works when the workspace is in the Running state.",
+			description: "⛔ Explicitly stop (pause) the ENTIRE Supabase workspace, matching the CLI `projects stop` and the StopWorkspace API. Use this tool ONLY when the user explicitly asks to stop or pause the whole workspace and has confirmed the outage impact. This is NOT compute auto-suspend / idle sleep: never use it for requests such as 休眠, 自动休眠, auto-suspend, scale-to-zero, save compute, or sleep. Workspace stop makes every branch and service unavailable until a later explicit start.",
 		}, stopWorkspace),
+		defineTool(meta{
+			name:        "sleep_workspace",
+			title:       "Suspend workspace",
+			aliases:     []string{"suspend_workspace"},
+			feature:     featureAccount,
+			mutating:    true,
+			description: "Put the ENTIRE Supabase workspace to sleep through the SuspendWorkspace API. This is workspace hibernation (休眠), not explicit workspace pause: it must never be replaced with stop_workspace or the CLI projects stop command. Use this for an explicit workspace sleep request. This is separate from compute_settings, which only changes compute autoscaling or compute auto-sleep configuration.",
+		}, suspendWorkspace),
+		defineTool(meta{
+			name:        "wake_workspace",
+			title:       "Wake workspace",
+			feature:     featureAccount,
+			mutating:    true,
+			description: "Wake a suspended Supabase workspace by calling DescribeWorkspaceEndpoint to obtain AddressDomain and making one HTTP request to the Supabase instance. Do NOT use start_workspace for a workspace suspended via SuspendWorkspace; start_workspace is only for an explicitly stopped workspace.",
+		}, wakeWorkspace),
 		defineTool(meta{
 			name:        "start_workspace",
 			title:       "Start workspace",
 			aliases:     []string{"restore_workspace"},
 			feature:     featureAccount,
 			mutating:    true,
-			description: "Start (restore) a Supabase workspace that is paused (Stopped) or auto-suspended (Suspended), matching the CLI `projects start`.",
+			description: "Start (restore) a Supabase workspace that was explicitly paused/stopped, matching the CLI `projects start`. Use only for an explicitly stopped workspace. Do NOT use this tool to wake an auto-suspended compute: auto-suspended computes wake automatically on the next request.",
 		}, startWorkspace),
 		defineTool(meta{
 			name:        "set_workspace_deletion_protection",
@@ -214,7 +229,7 @@ func createWorkspace(ctx context.Context, p *policy, in createWorkspaceInput) (s
 		"success":      true,
 		"workspace_id": result.WorkspaceID,
 		"workspace":    view,
-		"suspend_hint": "新建实例默认关闭自动休眠(suspend_timeout_seconds = -1,即算力常驻、永不自动休眠)。请主动、非阻塞地问用户是否开启自动休眠,可直接用这段话:「关于空闲自动休眠:当前算力常驻、不会自动休眠——稳定但更耗资源。如果想节省算力,可配置空闲自动休眠时间(再次访问无需手动操作,Supabase 自动唤醒),推荐 1 小时。」用户同意后,调用一次 modify_compute_settings,只传 workspace_id 和 suspend_timeout_seconds=3600 即可(休眠超时是 workspace 级设置,无需 compute_id);如需之后再次关闭自动休眠,传 suspend_timeout_seconds=-1(算力常驻);用户拒绝或不回答则保持常驻默认,不要阻塞。",
+		"suspend_hint": "新建实例默认关闭算力自动休眠(suspend_timeout_seconds = -1,即算力常驻、永不自动休眠)。请主动、非阻塞地问用户是否开启算力自动休眠,可直接用这段话:「关于空闲算力自动休眠:当前算力常驻、不会自动休眠——稳定但更耗资源。如果想节省算力,可配置算力空闲自动休眠时间,推荐 1 小时。」用户同意后,调用一次 compute_settings,只传 workspace_id 和 suspend_timeout_seconds=3600 即可;如需之后再次关闭自动休眠,传 suspend_timeout_seconds=-1;用户拒绝或不回答则保持常驻默认,不要阻塞。",
 	})
 }
 
@@ -268,6 +283,34 @@ func stopWorkspace(ctx context.Context, p *policy, in workspaceTarget) (string, 
 	return toJSON(map[string]any{"success": true, "workspace_id": workspaceID, "action": "stop"})
 }
 
+func suspendWorkspace(ctx context.Context, p *policy, in workspaceTarget) (string, error) {
+	client, workspaceID, err := p.writeClientFor(ctx, in.WorkspaceID)
+	if err != nil {
+		return "", err
+	}
+	if err := client.SuspendWorkspace(ctx, workspaceID); err != nil {
+		return "", err
+	}
+	return toJSON(map[string]any{"success": true, "workspace_id": workspaceID, "action": "sleep"})
+}
+
+func wakeWorkspace(ctx context.Context, p *policy, in workspaceTarget) (string, error) {
+	client, workspaceID, err := p.writeClientFor(ctx, in.WorkspaceID)
+	if err != nil {
+		return "", err
+	}
+	domain, statusCode, err := client.WakeWorkspace(ctx, workspaceID)
+	if err != nil {
+		return "", err
+	}
+	return toJSON(map[string]any{
+		"success":        true,
+		"workspace_id":   workspaceID,
+		"action":         "wake",
+		"address_domain": domain,
+		"http_status":    statusCode,
+	})
+}
 func startWorkspace(ctx context.Context, p *policy, in workspaceTarget) (string, error) {
 	client, workspaceID, err := p.writeClientFor(ctx, in.WorkspaceID)
 	if err != nil {

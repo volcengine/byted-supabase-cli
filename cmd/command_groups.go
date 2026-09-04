@@ -4,43 +4,18 @@
 package cmd
 
 import (
-	"io"
-	"os"
-
-	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
+	commandtree "github.com/volcengine/byted-supabase-cli/cmd/tree"
 )
 
-type RuntimeContext struct {
-	Input  io.Reader
-	FS     afero.Fs
-	Output io.Writer
-	Stderr io.Writer
-}
-
-type CommandFactory func(RuntimeContext) *cobra.Command
-
-type CommandGroup struct {
-	Group     *cobra.Group
-	Factories []CommandFactory
-}
+type RuntimeContext = commandtree.RuntimeContext
+type CommandFactory = commandtree.CommandFactory
+type CommandGroup = commandtree.CommandGroup
 
 func defaultRuntimeContext() RuntimeContext {
-	return RuntimeContext{
-		Input:  os.Stdin,
-		FS:     afero.NewOsFs(),
-		Output: os.Stdout,
-		Stderr: os.Stderr,
-	}
+	return commandtree.DefaultRuntimeContext()
 }
 
 func installCommandGroup(root *cobra.Command, group CommandGroup, ctx RuntimeContext) {
-	if group.Group != nil {
-		root.AddGroup(group.Group)
-	}
-	for _, factory := range group.Factories {
-		if command := factory(ctx); command != nil {
-			root.AddCommand(command)
-		}
-	}
+	commandtree.InstallGroup(root, group, ctx)
 }

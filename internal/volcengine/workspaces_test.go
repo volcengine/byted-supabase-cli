@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/volcengine/volcengine-go-sdk/service/aidap"
 )
 
@@ -42,4 +43,43 @@ func TestBuildAgentPlanSettings(t *testing.T) {
 		assert.NotNil(t, enterprise.AgentPlanSeatId)
 		assert.Equal(t, "seat-123", *enterprise.AgentPlanSeatId)
 	}
+}
+
+func TestDescribeWorkspaceEndpointsAddressDomain(t *testing.T) {
+	result := DescribeWorkspaceEndpointsResult{
+		Endpoints: []Endpoint{
+			{Addresses: []EndpointAddress{{AddressType: "Private", AddressDomain: "private.example.com"}}},
+			{Addresses: []EndpointAddress{{AddressType: "Public", AddressDomain: "public.example.com"}}},
+		},
+	}
+	domain, err := result.AddressDomain()
+	require.NoError(t, err)
+	assert.Equal(t, "public.example.com", domain)
+}
+
+func TestDescribeWorkspaceEndpointsAddressDomainFallback(t *testing.T) {
+	domain, err := (DescribeWorkspaceEndpointsResult{
+		Endpoints: []Endpoint{{Addresses: []EndpointAddress{{AddressDomain: "fallback.example.com"}}}},
+	}).AddressDomain()
+	require.NoError(t, err)
+	assert.Equal(t, "fallback.example.com", domain)
+}
+
+func TestDescribeWorkspaceEndpointsAddressDomainRejectsEmpty(t *testing.T) {
+	_, err := (DescribeWorkspaceEndpointsResult{}).AddressDomain()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no usable Supabase endpoint")
+}
+
+func TestWorkspaceActionInputIncludesProjectName(t *testing.T) {
+	input := workspaceActionInput{
+		ProjectName: "gongna",
+		WorkspaceID: "proud-apple-e8c24d8w",
+	}
+	assert.Equal(t, "gongna", input.ProjectName)
+	assert.Equal(t, "proud-apple-e8c24d8w", input.WorkspaceID)
+}
+
+func TestFormatWakeResultWhenWorkspaceAlreadyRunning(t *testing.T) {
+	assert.Equal(t, "workspace is already Running; no wake request was sent", FormatWakeResult("", 0))
 }

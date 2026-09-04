@@ -15,12 +15,14 @@ func TestComputesFactoryCommandTree(t *testing.T) {
 	require.Nil(t, command.Flags().Lookup("workspace-id"))
 	require.Nil(t, command.PersistentFlags().Lookup("workspace-id"))
 
-	for _, name := range []string{"list", "get", "update"} {
+	for _, name := range []string{"list", "get", "update", "restart"} {
 		leaf, _, err := command.Find([]string{name})
 		require.NoError(t, err)
 		require.NotNil(t, leaf.Flags().Lookup("project-ref"), "%s missing project-ref", leaf.CommandPath())
 		require.NotNil(t, leaf.Flags().Lookup("workspace-id"), "%s missing workspace-id", leaf.CommandPath())
 	}
+	_, _, err := command.Find([]string{"settings"})
+	require.Error(t, err, "settings must be a projects command")
 }
 
 func TestComputesFactoryCreatesIndependentCommands(t *testing.T) {

@@ -79,6 +79,26 @@ type DescribeWorkspaceEndpointsResult struct {
 	Endpoints   []Endpoint `json:"Endpoints"`
 }
 
+func (r DescribeWorkspaceEndpointsResult) AddressDomain() (string, error) {
+	for _, preferredType := range []string{"Public", "Inner", "Private"} {
+		for _, endpoint := range r.Endpoints {
+			for _, address := range endpoint.Addresses {
+				if strings.EqualFold(address.AddressType, preferredType) && strings.TrimSpace(address.AddressDomain) != "" {
+					return strings.TrimSpace(address.AddressDomain), nil
+				}
+			}
+		}
+	}
+	for _, endpoint := range r.Endpoints {
+		for _, address := range endpoint.Addresses {
+			if strings.TrimSpace(address.AddressDomain) != "" {
+				return strings.TrimSpace(address.AddressDomain), nil
+			}
+		}
+	}
+	return "", errors.New("no usable Supabase endpoint address found for workspace")
+}
+
 type Endpoint struct {
 	EndpointID   string            `json:"EndpointId"`
 	EndpointName string            `json:"EndpointName"`

@@ -25,11 +25,23 @@ byted-supabase-cli projects create my-project -o json   # 1. 创建（region 走
 3. 用户要设置时（以 1 小时为例）：
 
 ```bash
-# ⚠️ 三个必带项：① --yes（compute-settings 是变更操作，非交互/agent 模式缺它直接报
+# ⚠️ 三个必带项：① --yes（projects settings 是变更操作，非交互/agent 模式缺它直接报
 #    "missing required flag: --yes"）；② --service-type Supabase（休眠作用于用户面的 Supabase 服务）；
 #    ③ --min-cu/--max-cu：Supabase 服务的 min CU 下限是 0.5，必须 ≥0.5（用 0.5/2 即可；
 #    千万别用 `projects list --detail` 查到的 0.25 回填——那是 Database 服务的值，<0.5 会被拒为 InvalidParameter）。
-byted-supabase-cli projects compute-settings ws-xxxx --service-type Supabase --min-cu 0.5 --max-cu 2 --suspend-timeout-seconds 3600 --yes
+byted-supabase-cli projects settings ws-xxxx --service-type Supabase --min-cu 0.5 --max-cu 2 --suspend-timeout-seconds 3600 --yes
+```
+
+如果用户要求**立即休眠整个 workspace**，使用独立的 `SuspendWorkspace` 动作，不要调用 `projects stop`：
+
+```bash
+byted-supabase-cli projects sleep ws-xxxx --yes
+```
+
+休眠后如需唤醒，先查询 workspace endpoint，再访问 Supabase 实例：
+
+```bash
+byted-supabase-cli projects wake ws-xxxx --yes
 ```
 
 ## 2. 安全变更流程（用分支隔离）

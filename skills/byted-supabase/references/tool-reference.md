@@ -39,23 +39,25 @@
 | `list-workspaces` | `byted-supabase-cli projects list -o json`（支持分页 `--limit`(1-100，缺省 100) / `--offset`，**建议每页 `--limit 10`** 翻页） |
 | `describe-workspace` | `byted-supabase-cli projects list --workspace-id ws-... --detail -o json`（或 `projects overview`） |
 | `create-workspace` | `byted-supabase-cli projects create <name>`（region 走 `--region`/env/profile；`--volc-project-name` 可指定火山项目名）。**默认不休眠**；创建成功后须主动说明休眠超时并非阻塞询问（见下方「💤 休眠超时」）。Agent Plan 渠道场景另见下方「🔌 Agent Plan 实例」（可选，普通用户无需关心） |
-| `pause-workspace`（⛔ **高危**，见下方辨析） | `byted-supabase-cli projects stop <ref> --yes` |
-| `restore-workspace` | `byted-supabase-cli projects start <ref> --yes` |
+| `sleep-workspace`（workspace 休眠） | `byted-supabase-cli projects sleep --workspace-id <workspace-id> --yes` |
+| `wake-workspace`（唤醒 workspace） | `byted-supabase-cli projects wake --workspace-id <workspace-id> --yes`（DescribeWorkspaceEndpoint → AddressDomain → 访问 Supabase） |
+| `pause-workspace`（⛔ **高危**，见下方辨析） | `byted-supabase-cli projects stop --workspace-id <workspace-id> --yes` |
+| `restore-workspace` | `byted-supabase-cli projects start --workspace-id <workspace-id> --yes` |
 | `get-workspace-url` | `byted-supabase-cli endpoints list --workspace-id ws-... -o json`（访问地址）；`byted-supabase-cli db connection-string --workspace-id ws-...`（Postgres 连接串） |
 | `get-keys` | `byted-supabase-cli projects api-keys --workspace-id ws-... -o json`（返回 anon / service_role 等） |
 | `list-branches` | `byted-supabase-cli branches list --workspace-id ws-... -o json`（⚠️ 缺省返回全部；**建议显式 `--limit 10`** 配合 `--offset` 翻页，或用 `--search <kw>` 过滤） |
 | `create-branch` | `byted-supabase-cli branches create <name> --workspace-id ws-... [--parent-id br-... | --parent-time <RFC3339>]` |
 | `delete-branch` | `byted-supabase-cli branches delete <branch-id> --workspace-id ws-...` |
 
-补充分支命令：`branches get <id>`、`branches get-default`、`branches set-default <id>`、`branches restart <id>`（重启算力）、`branches restore <id> --restore-time <RFC3339>`（时间点恢复）、`branches restorable --restore-time <ts>`、`branches restore-window <id>`、`branches update <id> --name <new>`。
+补充分支命令：`branches get <id>`、`branches get-default`、`branches set-default <id>`、`computes restart <id> [--compute-id <compute-id>]`（重启分支算力）、`branches restore <id> --restore-time <RFC3339>`（时间点恢复）、`branches restorable --restore-time <ts>`、`branches restore-window <id>`、`branches update <id> --name <new>`。
 
-补充 workspace 命令：`projects delete <ref> --yes`、`projects rename <ref> --name <new>`、`projects deletion-protection <ref> --enable|--disable`、`projects compute-settings <ref> --min-cu/--max-cu [--suspend-timeout-seconds <秒>]`（即 ModifyComputeSettings；改休眠超时见下方「💤 休眠超时」）、`projects api-keys`、`projects operations <ref>`（审计日志，缺省只返回最近 10 条；翻页用 `--limit`(1-100) / `--offset`）。
+补充 workspace 命令：`projects delete <ref> --yes`、`projects rename <ref> --name <new>`、`projects deletion-protection <ref> --enable|--disable`、`projects sleep <ref> --yes`（即 SuspendWorkspace，立即休眠整个 workspace）、`projects wake <ref> --yes`（DescribeWorkspaceEndpoint → AddressDomain → 访问 Supabase 触发唤醒）、`projects settings compute <ref> --min-cu/--max-cu [--suspend-timeout-seconds <秒>]`（即 ModifyComputeSettings，仅修改算力/休眠配置，不立即休眠）、`projects api-keys`、`projects operations <ref>`（审计日志，缺省只返回最近 10 条；翻页用 `--limit`(1-100) / `--offset`）。
 
 补充算力（compute）命令：`computes list --workspace-id <ref> [--branch-id br-...] [--service-type Supabase|Database]`（列出该分支下每个 compute 实例，含 `ServiceType`/`ComputeStatus`/`AutoScalingLimitMinCU`/`AutoScalingLimitMaxCU`）、`computes get <compute-id> --workspace-id <ref>`（查单个）、`computes update <compute-id> --workspace-id <ref> [--name <n>] [--min-cu <n> --max-cu <n>]`（改名 / 改算力规格）。
 
-> **🔍 校验算力改动是否生效，必须按 ServiceType 查，不能用 `--detail`**：`projects list --detail` 返回的 `compute_min_cu`/`compute_max_cu`/`enable_analytics` 是**笼统的单一聚合值，实测对应的是 Database 服务**，不区分 Supabase / Database 两种服务类型。**用 `projects compute-settings <ref> --service-type Supabase ...` 改了 Supabase 服务的算力后，如果拿 `projects list --detail` 回查，会看到 Database 服务那份没变的旧值，从而误判"修改失败"——实际改动已经生效，只是查错了字段。** 正确校验方式：`byted-supabase-cli computes list --workspace-id <ref> --service-type Supabase -o json`，核对返回数组里目标 compute 的 `AutoScalingLimitMinCU`/`AutoScalingLimitMaxCU`/`ComputeStatus`。（`SuspendTimeoutSeconds` 是 workspace 级单值，不受此限制，`--detail` 里的 `suspend_timeout_seconds` 可以直接信。）
+> **🔍 校验算力改动是否生效，必须按 ServiceType 查，不能用 `--detail`**：`projects list --detail` 返回的 `compute_min_cu`/`compute_max_cu`/`enable_analytics` 是**笼统的单一聚合值，实测对应的是 Database 服务**，不区分 Supabase / Database 两种服务类型。**用 `projects settings compute <ref> --service-type Supabase ...` 改了 Supabase 服务的算力后，如果拿 `projects list --detail` 回查，会看到 Database 服务那份没变的旧值，从而误判"修改失败"——实际改动已经生效，只是查错了字段。** 正确校验方式：`byted-supabase-cli computes list --workspace-id <ref> --service-type Supabase -o json`，核对返回数组里目标 compute 的 `AutoScalingLimitMinCU`/`AutoScalingLimitMaxCU`/`ComputeStatus`。（`SuspendTimeoutSeconds` 是 workspace 级单值，不受此限制，`--detail` 里的 `suspend_timeout_seconds` 可以直接信。）
 
-> **💤 休眠超时（SuspendTimeoutSeconds）**：分支算力**空闲多少秒后自动休眠（scale-to-zero）**的阈值，到点休眠、下次访问自动唤醒（这是「休眠」非「暂停」）。**取值语义**：`-1` = 显式关闭自动休眠（算力常驻 / 永不休眠）；`0` = 未设置的平台默认（行为等同常驻）；`300`–`604800` 秒（5 分钟–7 天）= 启用。**新建 workspace 默认不休眠**（`projects list --detail` 显示为 `0`）；想**关闭**已开启的自动休眠传 `-1`（不是 `0`）。改它用 `projects compute-settings <ref> --service-type Supabase --min-cu 0.5 --max-cu 2 --suspend-timeout-seconds <秒> --yes`；**非交互/agent 模式 `--yes`（变更操作，缺它报 `missing required flag: --yes`）与 `--min-cu`/`--max-cu` 都不能少**。⚠️ **Supabase 服务的 min CU 下限是 `0.5`，必须 ≥0.5**（直接用 `0.5`/`2`）；**千万别用 `projects list --detail` 查到的值回填 min** —— 那是 Database 服务的 `0.25`，`<0.5` 配 Supabase 会被服务端拒为 `InvalidParameter`。休眠超时是 workspace 级单值，经 Supabase 服务设置即生效。`projects create` 成功后应**主动说明并非阻塞地询问**是否设置，**推荐 1 小时（`--suspend-timeout-seconds 3600`）**，用户无需要则保持默认不休眠。
+> **💤 休眠超时（SuspendTimeoutSeconds）**：分支算力**空闲多少秒后自动休眠（scale-to-zero）**的阈值，到点休眠、下次访问自动唤醒（这是「休眠」非「暂停」）。**取值语义**：`-1` = 显式关闭自动休眠（算力常驻 / 永不休眠）；`0` = 未设置的平台默认（行为等同常驻）；`300`–`604800` 秒（5 分钟–7 天）= 启用。**新建 workspace 默认不休眠**（`projects list --detail` 显示为 `0`）；想**关闭**已开启的自动休眠传 `-1`（不是 `0`）。改它用 `projects settings compute <ref> --service-type Supabase --min-cu 0.5 --max-cu 2 --suspend-timeout-seconds <秒> --yes`；**非交互/agent 模式 `--yes`（变更操作，缺它报 `missing required flag: --yes`）与 `--min-cu`/`--max-cu` 都不能少**。⚠️ **Supabase 服务的 min CU 下限是 `0.5`，必须 ≥0.5**（直接用 `0.5`/`2`）；**千万别用 `projects list --detail` 查到的值回填 min** —— 那是 Database 服务的 `0.25`，`<0.5` 配 Supabase 会被服务端拒为 `InvalidParameter`。休眠超时是 workspace 级单值，经 Supabase 服务设置即生效。`projects create` 成功后应**主动说明并非阻塞地询问**是否设置，**推荐 1 小时（`--suspend-timeout-seconds 3600`）**，用户无需要则保持默认不休眠。
 
 > **🔌 Agent Plan 实例（特定渠道/合作方场景，可选，非通用）**：默认创建的是**普通实例**，绝大多数用户都走这条路。仅当用户经 **Agent Plan 渠道**接入、并**主动要求**创建 Agent Plan 实例时，才在 `projects create` 时按版本加参数：
 > - **个人版**：加 `--is-agent-plan`（不带 seat id），把新实例创建为个人版 Agent Plan 实例。
@@ -66,9 +68,11 @@
 > ⚠️ **不要主动向普通用户建议或启用 Agent Plan**——仅在用户主动问起 Agent Plan、或主动要求创建时，按本说明处理；其余情况当作普通实例创建即可。
 
 > **⚠️ 暂停 / 重启 / 休眠 辨析**（别混淆，危险等级递增）：
-> - **重启**分支算力 → `branches restart <id>`（**单条命令**；**不要**用 `projects stop` + `projects start` 模拟重启，那是整个 workspace 停机再开机）。**低危**。
-> - **休眠 / 唤醒** → 分支算力的**平台自动行为**：空闲超过 `SuspendTimeoutSeconds` 自动 scale-to-zero，下次访问 exposeURL 自动唤醒，**唤醒无手动命令**；超时阈值可配（`projects compute-settings <ref> --service-type Supabase --min-cu 0.5 --max-cu 2 --suspend-timeout-seconds <秒> --yes`，**新建默认不休眠**），更不要用 `projects stop` 代替。**低危**。
-> - **⛔ 暂停 / 恢复** → `projects stop` / `projects start`，作用于**整个 workspace**（含其下所有分支）。**高危红线**：暂停后客户业务彻底不可用，且**无法靠客户 IO 自动唤醒**，只能人工 `projects start`。执行 `projects stop` 前**必须向用户复述影响并二次确认**、核对 `ref`，**绝不**拿它当重启/休眠/省资源的手段。
+> - **重启**分支算力 → `computes restart <id> [--compute-id <compute-id>]`，调用 `RestartBranch`（**单条命令**；**不要**用 `projects stop` + `projects start` 模拟重启，那是整个 workspace 停机再开机）。**低危**。
+> - **workspace 休眠** → `projects sleep --workspace-id <workspace-id> --yes`，调用 `SuspendWorkspace`。它与 `projects stop` 的暂停接口不同。
+> - **workspace 唤醒** → `projects wake --workspace-id <workspace-id> --yes`，通过实例访问触发，不调用 `StartWorkspace`。
+> - **算力自动休眠** → `SuspendTimeoutSeconds` 由 `projects settings` 配置，平台按空闲时间自动 scale-to-zero；不要把该配置命令、`computes restart` 或 `projects sleep` 误替换成 `projects stop`。
+> - **⛔ 暂停 / 恢复** → `projects stop --workspace-id <workspace-id>` / `projects start --workspace-id <workspace-id>`，作用于**整个 workspace**（含其下所有分支）。**高危红线**：暂停后客户业务彻底不可用，且**无法靠客户 IO 自动唤醒**，只能人工 start。执行 stop 前**必须向用户复述影响并二次确认**、核对目标 Workspace，**绝不**拿它当重启/休眠/省资源的手段。
 
 ---
 

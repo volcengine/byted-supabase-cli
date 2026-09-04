@@ -93,6 +93,13 @@ type UnbindPagesProjectParams struct {
 	BranchID    string
 }
 
+type workspaceActionInput struct {
+	ProjectName string `json:"ProjectName,omitempty"`
+	WorkspaceID string `json:"WorkspaceId"`
+}
+
+type workspaceActionOutput struct{}
+
 type PagesProjectParam struct {
 	Framework     string `json:"Framework,omitempty" toml:"framework,omitempty" yaml:"framework,omitempty"`
 	RootDir       string `json:"RootDir,omitempty" toml:"root_dir,omitempty" yaml:"root_dir,omitempty"`

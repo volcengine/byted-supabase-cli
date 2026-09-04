@@ -90,13 +90,30 @@ func RunVolcengine(ctx context.Context, workspaceID string, fsys afero.Fs) error
 
 func RunVolcengineStart(ctx context.Context, workspaceID string, fsys afero.Fs) error {
 	return runVolcengineWorkspaceAction(ctx, workspaceID, fsys, "start", func(client *volcengine.Client, workspace volcengine.Workspace) error {
-		return client.StartWorkspace(ctx, workspace.WorkspaceID)
+		return client.StartWorkspaceForProject(ctx, workspace.WorkspaceID, workspace.ProjectName)
 	})
 }
 
 func RunVolcengineStop(ctx context.Context, workspaceID string, fsys afero.Fs) error {
 	return runVolcengineWorkspaceAction(ctx, workspaceID, fsys, "stop", func(client *volcengine.Client, workspace volcengine.Workspace) error {
-		return client.StopWorkspace(ctx, workspace.WorkspaceID)
+		return client.StopWorkspaceForProject(ctx, workspace.WorkspaceID, workspace.ProjectName)
+	})
+}
+
+func RunVolcengineSuspend(ctx context.Context, workspaceID string, fsys afero.Fs) error {
+	return runVolcengineWorkspaceAction(ctx, workspaceID, fsys, "suspend", func(client *volcengine.Client, workspace volcengine.Workspace) error {
+		return client.SuspendWorkspace(ctx, workspace.WorkspaceID)
+	})
+}
+
+func RunVolcengineWake(ctx context.Context, workspaceID string, fsys afero.Fs) error {
+	return runVolcengineWorkspaceAction(ctx, workspaceID, fsys, "wake", func(client *volcengine.Client, workspace volcengine.Workspace) error {
+		domain, statusCode, err := client.WakeWorkspace(ctx, workspace.WorkspaceID)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%s\n", volcengine.FormatWakeResult(domain, statusCode))
+		return nil
 	})
 }
 
@@ -142,6 +159,8 @@ func pastTense(action string) string {
 		return "Started"
 	case "stop":
 		return "Stopped"
+	case "suspend":
+		return "Suspended"
 	case "delete":
 		return "Deleted"
 	default:

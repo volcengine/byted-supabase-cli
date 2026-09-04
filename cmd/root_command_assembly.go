@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+	commandtree "github.com/volcengine/byted-supabase-cli/cmd/tree"
 	generateFigSpec "github.com/withfig/autocomplete-tools/packages/cobra"
 )
 
@@ -32,12 +33,6 @@ func newGenerateFigSpecCommand(ctx RuntimeContext) *cobra.Command {
 }
 
 func assembleRootCommand(root *cobra.Command, ctx RuntimeContext) {
-	for _, group := range rootCommandGroups() {
-		installCommandGroup(root, group, ctx)
-	}
+	commandtree.Assemble(root, rootCommandGroups(), ctx)
 	installSystemCommandFactories(root)
-}
-
-func init() {
-	assembleRootCommand(rootCmd, defaultRuntimeContext())
 }

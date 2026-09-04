@@ -43,13 +43,24 @@ func TestAliasRoutesToCanonical(t *testing.T) {
 // the alias is not advertised in tools/list.
 func TestComputeAliasRoutesToCanonical(t *testing.T) {
 	cs := connect(t, Options{Features: []string{featureCompute}})
-	assert.True(t, listToolNames(t, cs)["modify_compute_settings"])
+	assert.True(t, listToolNames(t, cs)["compute_settings"])
+	assert.False(t, listToolNames(t, cs)["modify_compute_settings"], "the modify alias must stay hidden")
 	assert.False(t, listToolNames(t, cs)["update_compute_settings"], "the update alias must stay hidden")
 
 	res, err := callByName(t, cs, "update_compute_settings")
 	require.NoError(t, err, "update_compute_settings must route to modify_compute_settings")
 	assert.True(t, res.IsError)
 	assert.Contains(t, resultText(t, res), "nothing to modify")
+}
+
+func TestRestartComputeAliasRoutesToCanonical(t *testing.T) {
+	cs := connect(t, Options{Features: []string{featureCompute}})
+	assert.True(t, listToolNames(t, cs)["restart_compute"])
+	assert.False(t, listToolNames(t, cs)["restart_branch"])
+	res, err := callByName(t, cs, "restart_branch")
+	require.NoError(t, err)
+	assert.True(t, res.IsError)
+	assert.Contains(t, resultText(t, res), "branch_id")
 }
 
 // TestAliasUnavailableInReadOnly verifies that an alias of a mutating tool is not callable

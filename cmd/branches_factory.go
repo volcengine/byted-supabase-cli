@@ -226,7 +226,7 @@ func newBranchesRestartCommand(ctx RuntimeContext) *cobra.Command {
 	parent := &branchesOptions{}
 	var options struct{ ComputeIDs []string }
 	var branchID string
-	cmd := newBranchesTargetCommand("restart [branch-id]", "Restart a preview branch", parent, ctx, &branchID, "Which project do you want to restart a branch for?", func(cmd *cobra.Command) error {
+	cmd := newBranchesTargetCommand("restart [branch-id]", "Restart branch compute", parent, ctx, &branchID, "Which project do you want to restart a branch for?", func(cmd *cobra.Command) error {
 		return manage.RunRestart(cmd.Context(), manage.BranchActionParams{WorkspaceID: parent.WorkspaceID, BranchID: branchID, ComputeIDs: options.ComputeIDs})
 	})
 	cmd.Flags().StringArrayVar(&options.ComputeIDs, "compute-id", nil, "Compute ID to restart. Can be specified multiple times; defaults to the whole branch.")

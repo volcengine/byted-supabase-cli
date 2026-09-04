@@ -11,6 +11,44 @@ import (
 	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 )
 
+type restartBranchInput struct {
+	BranchID    string   `json:"branch_id" jsonschema:"id of the branch whose compute should be restarted"`
+	ComputeIDs  []string `json:"compute_ids,omitempty" jsonschema:"optional compute ids; omit to restart all computes on the branch"`
+	WorkspaceID string   `json:"workspace_id,omitempty" jsonschema:"Supabase workspace (project) id; omit when the server is scoped to a single workspace"`
+}
+
+func restartBranch(ctx context.Context, p *policy, in restartBranchInput) (string, error) {
+	branchID := strings.TrimSpace(in.BranchID)
+	if branchID == "" {
+		return "", errors.New("branch_id is required")
+	}
+	client, workspaceID, err := p.writeClientFor(ctx, in.WorkspaceID)
+	if err != nil {
+		return "", err
+	}
+	computeIDs := make([]string, 0, len(in.ComputeIDs))
+	for _, computeID := range in.ComputeIDs {
+		if trimmed := strings.TrimSpace(computeID); trimmed != "" {
+			computeIDs = append(computeIDs, trimmed)
+		}
+	}
+	result, err := client.RestartBranch(ctx, volcengine.RestartBranchParams{
+		WorkspaceID: workspaceID,
+		BranchID:    branchID,
+		ComputeIDs:  computeIDs,
+	})
+	if err != nil {
+		return "", err
+	}
+	return toJSON(map[string]any{
+		"success":      true,
+		"workspace_id": workspaceID,
+		"branch_id":    result.BranchID,
+		"compute_ids":  result.ComputeIDs,
+		"action":       "restart_compute",
+	})
+}
+
 // supabaseServiceMinCU is the minimum allowed min CU for the Supabase (BaaS) service.
 // Setting the suspend timeout uses ServiceType=Supabase; min CU must be ≥ this value
 // or the backend returns InvalidParameter.
@@ -51,9 +89,9 @@ func computeTools() []toolSpec {
 			description: "List the compute (CU) settings for a branch, including auto-scaling min/max CU and status.",
 		}, getComputeSettings),
 		defineTool(meta{
-			name:    "modify_compute_settings",
+			name:    "compute_settings",
 			title:   "Modify compute settings",
-			aliases: []string{"update_compute_settings"},
+			aliases: []string{"modify_compute_settings", "update_compute_settings"},
 			feature: featureCompute,
 			// Canonical name stays "modify": this tool's dominant backend call is the
 			// workspace-level ModifyComputeSettings API (the CLI surfaces it as `projects
@@ -61,8 +99,16 @@ func computeTools() []toolSpec {
 			// folds in `computes update`'s rename/resize. update_compute_settings is kept
 			// as a hidden alias so the CLI's `computes update` verb still routes here.
 			mutating:    true,
-			description: "Resize a compute (auto-scaling min/max CU) and/or rename it, and/or set the auto-suspend idle timeout. suspend_timeout_seconds controls auto-suspend (scale-to-zero): a value >=300 suspends the compute after that many idle seconds; -1 disables auto-suspend (always-on / never suspend); 0 is the unset default shown on brand-new workspaces (also effectively always-on). To turn auto-suspend OFF, send -1, not 0. A suspended compute auto-wakes on the next request (cold start). The suspend timeout is a workspace-wide setting applied via the workspace-level ModifyComputeSettings API. Recommend 3600 (60 min) when enabling auto-suspend.",
+			description: "Configure compute autoscaling, the compute auto-sleep timeout, and/or rename a compute. Use this tool with suspend_timeout_seconds only to change the idle-timeout configuration; it calls ModifyComputeSettings and does NOT immediately suspend the workspace. A value >=300 enables compute auto-sleep after that many idle seconds; -1 disables auto-sleep (always-on / never suspend); 0 is the unset default and is effectively always-on. To immediately hibernate the entire workspace, use suspend_workspace (SuspendWorkspace), not this tool and not stop_workspace. To explicitly pause the entire workspace, use stop_workspace (StopWorkspace). Recommend 3600 (60 min) when enabling auto-sleep.",
 		}, modifyComputeSettings),
+		defineTool(meta{
+			name:        "restart_compute",
+			title:       "Restart compute",
+			aliases:     []string{"restart_branch"},
+			feature:     featureCompute,
+			mutating:    true,
+			description: "Restart branch compute through RestartBranch. This is compute restart, not workspace sleep, workspace pause, or compute auto-sleep. Provide branch_id; optionally provide compute_ids to restart selected computes, otherwise all computes on the branch. Do not use stop_workspace or suspend_workspace for compute restart.",
+		}, restartBranch),
 	}
 }
 
@@ -145,7 +191,7 @@ type modifyComputeSettingsInput struct {
 	MinCU                 *float64 `json:"min_cu,omitempty" jsonschema:"auto-scaling lower bound in compute units (CU); required together with max_cu to resize. Allowed values are discrete: Database-service computes [0.25, 0.5, 1, 2, ... 32]; Supabase-service computes start at 0.5 (no 0.25). The max_cu/min_cu ratio must not exceed 8"`
 	MaxCU                 *float64 `json:"max_cu,omitempty" jsonschema:"auto-scaling upper bound in compute units (CU); required together with min_cu to resize. Same discrete allowed values as min_cu (maximum 32); must be greater than min_cu and the max_cu/min_cu ratio must not exceed 8"`
 	ComputeName           string   `json:"compute_name,omitempty" jsonschema:"new name for the compute"`
-	SuspendTimeoutSeconds *int     `json:"suspend_timeout_seconds,omitempty" jsonschema:"auto-suspend (scale-to-zero) idle timeout: >=300 = suspend after that many idle seconds; -1 = disable auto-suspend (always-on / never suspend); 0 = unset default (also always-on). To turn auto-suspend OFF, send -1, not 0. A suspended compute auto-wakes on next access. Applies workspace-wide via the workspace-level ModifyComputeSettings API; min_cu/max_cu are backfilled from the workspace's current settings when omitted. Recommend 3600 (60 min) when enabling"`
+	SuspendTimeoutSeconds *int     `json:"suspend_timeout_seconds,omitempty" jsonschema:"算力自动休眠 idle timeout configuration (not immediate workspace hibernation): >=300 = auto-sleep after idle seconds; -1 = disable auto-sleep (always-on); 0 = unset default (also always-on). This calls ModifyComputeSettings only. Use suspend_workspace for immediate workspace hibernation and stop_workspace for explicit workspace pause. Applies workspace-wide; min_cu/max_cu are backfilled when omitted. Recommend 3600 (60 min) when enabling"`
 	WorkspaceID           string   `json:"workspace_id,omitempty" jsonschema:"Supabase workspace (project) id; omit when the server is scoped to a single workspace"`
 }
 

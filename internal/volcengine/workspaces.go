@@ -5,6 +5,10 @@ package volcengine
 
 import (
 	"context"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/go-errors/errors"
 	"github.com/volcengine/volcengine-go-sdk/service/aidap"
@@ -248,11 +252,92 @@ func (c *Client) StartWorkspace(ctx context.Context, workspaceID string) error {
 	return nil
 }
 
+func (c *Client) StartWorkspaceForProject(ctx context.Context, workspaceID, projectName string) error {
+	if err := c.callAIDAPUniversal("StartWorkspace", &workspaceActionInput{
+		ProjectName: projectName,
+		WorkspaceID: workspaceID,
+	}, &workspaceActionOutput{}); err != nil {
+		return errors.Errorf("failed to call volcengine StartWorkspace: %w", err)
+	}
+	return nil
+}
+
 func (c *Client) StopWorkspace(ctx context.Context, workspaceID string) error {
 	if _, err := c.aidap.StopWorkspaceWithContext(ctx, (&aidap.StopWorkspaceInput{}).SetWorkspaceId(workspaceID)); err != nil {
 		return errors.Errorf("failed to call volcengine StopWorkspace: %w", err)
 	}
 	return nil
+}
+
+func (c *Client) StopWorkspaceForProject(ctx context.Context, workspaceID, projectName string) error {
+	if err := c.callAIDAPUniversal("StopWorkspace", &workspaceActionInput{
+		ProjectName: projectName,
+		WorkspaceID: workspaceID,
+	}, &workspaceActionOutput{}); err != nil {
+		return errors.Errorf("failed to call volcengine StopWorkspace: %w", err)
+	}
+	return nil
+}
+
+func (c *Client) SuspendWorkspace(ctx context.Context, workspaceID string) error {
+	if err := c.callAIDAPUniversal("SuspendWorkspace", &workspaceActionInput{
+		WorkspaceID: workspaceID,
+	}, &workspaceActionOutput{}); err != nil {
+		return errors.Errorf("failed to call volcengine SuspendWorkspace: %w", err)
+	}
+	return nil
+}
+
+func (c *Client) WakeWorkspace(ctx context.Context, workspaceID string) (string, int, error) {
+	detail, err := c.DescribeWorkspaceDetail(ctx, workspaceID)
+	if err != nil {
+		return "", 0, err
+	}
+	if strings.EqualFold(detail.Workspace.WorkspaceStatus, "Running") {
+		return "", 0, nil
+	}
+	branch, err := c.ResolveDefaultBranch(ctx, workspaceID)
+	if err != nil {
+		return "", 0, err
+	}
+	endpoints, err := c.DescribeWorkspaceEndpoints(ctx, DescribeWorkspaceEndpointsParams{
+		WorkspaceID: workspaceID,
+		BranchID:    branch.BranchID,
+	})
+	if err != nil {
+		return "", 0, err
+	}
+	domain, err := endpoints.AddressDomain()
+	if err != nil {
+		return "", 0, err
+	}
+	target := domain
+	if !strings.Contains(target, "://") {
+		target = "https://" + target
+	}
+	parsed, err := url.Parse(target)
+	if err != nil || parsed.Hostname() == "" {
+		return "", 0, errors.Errorf("invalid Supabase endpoint domain %q", domain)
+	}
+	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/rest/v1/"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
+	if err != nil {
+		return "", 0, errors.Errorf("failed to create Supabase wake request: %w", err)
+	}
+	client := &http.Client{Timeout: managementAPIRequestTimeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", 0, errors.Errorf("failed to access Supabase endpoint %q to wake workspace: %w", domain, err)
+	}
+	defer resp.Body.Close()
+	return domain, resp.StatusCode, nil
+}
+
+func FormatWakeResult(domain string, statusCode int) string {
+	if domain == "" && statusCode == 0 {
+		return "workspace is already Running; no wake request was sent"
+	}
+	return fmt.Sprintf("sent one wake request to Supabase endpoint %s/rest/v1/ (HTTP %d)", domain, statusCode)
 }
 
 func (c *Client) ModifyWorkspaceName(ctx context.Context, workspaceID, workspaceName string) error {
@@ -273,6 +358,15 @@ func (c *Client) ModifyWorkspaceDeletionProtectionPolicy(ctx context.Context, wo
 		SetWorkspaceId(workspaceID).
 		SetDeletionProtection(deletionProtection)); err != nil {
 		return errors.Errorf("failed to call volcengine ModifyWorkspaceDeletionProtectionPolicy: %w", err)
+	}
+	return nil
+}
+
+func (c *Client) ApplyPrivateDNSToPublic(ctx context.Context, workspaceID string, enabled bool) error {
+	if _, err := c.aidap.ApplyPrivateDNSToPublicWithContext(ctx, (&aidap.ApplyPrivateDNSToPublicInput{}).
+		SetWorkspaceId(workspaceID).
+		SetDNSVisibility(enabled)); err != nil {
+		return errors.Errorf("failed to call volcengine ApplyPrivateDNSToPublic: %w", err)
 	}
 	return nil
 }
