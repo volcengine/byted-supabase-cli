@@ -9,7 +9,6 @@ import (
 	"github.com/volcengine/byted-supabase-cli/internal/gen/types"
 	"github.com/volcengine/byted-supabase-cli/internal/utils"
 	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
-	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 )
 
 type genTypesOptions struct {
@@ -28,6 +27,7 @@ func newGenCommand(ctx RuntimeContext) *cobra.Command {
 		Use:     "gen",
 		Short:   "Run Code Generation Tools",
 	}
+	SetAuthPolicy(cmd, AuthPolicyVolcengine)
 	cmd.AddCommand(newGenTypesCommand(ctx))
 	return cmd
 }
@@ -81,11 +81,11 @@ func newGenTypesCommand(ctx RuntimeContext) *cobra.Command {
 			if err := flags.LoadConfig(ctx.FS); err != nil {
 				return err
 			}
-			cfg, err := volcengine.LoadConfigFromEnv()
+			client, err := volcengineClientFromAuth(cmd)
 			if err != nil {
 				return err
 			}
-			return types.RunVolcengine(cmd.Context(), volcengine.NewClient(cfg), types.VolcengineParams{
+			return types.RunVolcengine(cmd.Context(), client, types.VolcengineParams{
 				WorkspaceID:        options.WorkspaceID,
 				BranchID:           options.BranchID,
 				Lang:               options.Language.Value,

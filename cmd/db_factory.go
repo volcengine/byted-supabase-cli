@@ -20,7 +20,6 @@ import (
 	"github.com/volcengine/byted-supabase-cli/internal/db/query"
 	"github.com/volcengine/byted-supabase-cli/internal/utils"
 	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
-	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 	"github.com/volcengine/byted-supabase-cli/pkg/migration"
 )
 
@@ -85,11 +84,11 @@ func dbConnectionConfig(cmd *cobra.Command, fsys afero.Fs, options dbWorkspaceOp
 	if options.DBURL != "" {
 		return flags.DbConfig, nil
 	}
-	cfg, err := volcengine.LoadConfigFromEnv()
+	authContext, err := AuthContextFrom(cmd.Context())
 	if err != nil {
 		return pgconn.Config{}, err
 	}
-	return dbconnection.GetVolcengineConfig(cmd.Context(), volcengine.NewClient(cfg), dbconnection.VolcengineParams{
+	return dbconnection.GetVolcengineConfig(cmd.Context(), authContext.VolcengineClient, dbconnection.VolcengineParams{
 		WorkspaceID: options.WorkspaceID, BranchID: options.BranchID,
 	})
 }
@@ -101,11 +100,11 @@ func newDBConnectionStringCommand(ctx RuntimeContext) *cobra.Command {
 			if err := prepareDBWorkspace(cmd, ctx.FS, &options, "Which project do you want to retrieve a database connection string for?"); err != nil {
 				return err
 			}
-			cfg, err := volcengine.LoadConfigFromEnv()
+			authContext, err := AuthContextFrom(cmd.Context())
 			if err != nil {
 				return err
 			}
-			url, err := dbconnection.GetVolcengineURL(cmd.Context(), volcengine.NewClient(cfg), dbconnection.VolcengineParams{WorkspaceID: options.WorkspaceID, BranchID: options.BranchID})
+			url, err := dbconnection.GetVolcengineURL(cmd.Context(), authContext.VolcengineClient, dbconnection.VolcengineParams{WorkspaceID: options.WorkspaceID, BranchID: options.BranchID})
 			if err != nil {
 				return err
 			}
@@ -140,11 +139,11 @@ func newDBQueryCommand(ctx RuntimeContext) *cobra.Command {
 			if options.DBURL != "" {
 				return query.RunLocal(cmd.Context(), sql, flags.DbConfig, format, utils.IsAgentMode(), ctx.Output)
 			}
-			cfg, err := volcengine.LoadConfigFromEnv()
+			authContext, err := AuthContextFrom(cmd.Context())
 			if err != nil {
 				return err
 			}
-			return query.RunVolcengine(cmd.Context(), volcengine.NewClient(cfg), query.VolcengineParams{WorkspaceID: options.WorkspaceID, BranchID: options.BranchID, SQL: sql, Format: format, AgentMode: utils.IsAgentMode()}, ctx.Output)
+			return query.RunVolcengine(cmd.Context(), authContext.VolcengineClient, query.VolcengineParams{WorkspaceID: options.WorkspaceID, BranchID: options.BranchID, SQL: sql, Format: format, AgentMode: utils.IsAgentMode()}, ctx.Output)
 		}}
 	addDBRemoteTargetFlags(cmd, &options, false)
 	cmd.Flags().StringVarP(&queryFile, "file", "f", "", "Path to a SQL file to execute.")
@@ -165,11 +164,11 @@ func newDBAdvisorsCommand(ctx RuntimeContext) *cobra.Command {
 			if options.DBURL != "" {
 				return advisors.RunLocal(cmd.Context(), advisorType.Value, advisorLevel.Value, failOn.Value, flags.DbConfig)
 			}
-			cfg, err := volcengine.LoadConfigFromEnv()
+			authContext, err := AuthContextFrom(cmd.Context())
 			if err != nil {
 				return err
 			}
-			return advisors.RunVolcengine(cmd.Context(), volcengine.NewClient(cfg), options.WorkspaceID, options.BranchID, advisorType.Value, advisorLevel.Value, failOn.Value)
+			return advisors.RunVolcengine(cmd.Context(), authContext.VolcengineClient, options.WorkspaceID, options.BranchID, advisorType.Value, advisorLevel.Value, failOn.Value)
 		}}
 	addDBRemoteTargetFlags(cmd, &options, false)
 	cmd.Flags().Var(&advisorType, "type", "Type of advisors to check: all, security, performance.")
@@ -191,11 +190,11 @@ func newDBAPIConfigGetCommand(ctx RuntimeContext) *cobra.Command {
 		return prepareDBWorkspace(cmd, ctx.FS, &options, "Which project do you want to get DATA API config for?")
 	},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := volcengine.LoadConfigFromEnv()
+			authContext, err := AuthContextFrom(cmd.Context())
 			if err != nil {
 				return err
 			}
-			return dbapiconfig.RunVolcengineGet(cmd.Context(), volcengine.NewClient(cfg), options.WorkspaceID, options.BranchID, keys)
+			return dbapiconfig.RunVolcengineGet(cmd.Context(), authContext.VolcengineClient, options.WorkspaceID, options.BranchID, keys)
 		}}
 	addDBProjectFlags(cmd, &options)
 	cmd.Flags().BoolVar(&options.Linked, "linked", true, "Use the linked workspace when --workspace-id/--project-ref is omitted.")
@@ -211,11 +210,11 @@ func newDBAPIConfigSetCommand(ctx RuntimeContext) *cobra.Command {
 		return prepareDBWorkspace(cmd, ctx.FS, &options, "Which project do you want to set DATA API config for?")
 	},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := volcengine.LoadConfigFromEnv()
+			authContext, err := AuthContextFrom(cmd.Context())
 			if err != nil {
 				return err
 			}
-			return dbapiconfig.RunVolcengineSet(cmd.Context(), volcengine.NewClient(cfg), options.WorkspaceID, options.BranchID, args, fromJSON, ctx.FS)
+			return dbapiconfig.RunVolcengineSet(cmd.Context(), authContext.VolcengineClient, options.WorkspaceID, options.BranchID, args, fromJSON, ctx.FS)
 		}}
 	addDBProjectFlags(cmd, &options)
 	cmd.Flags().BoolVar(&options.Linked, "linked", true, "Use the linked workspace when --workspace-id/--project-ref is omitted.")
@@ -278,18 +277,14 @@ func newDBPullCommand(ctx RuntimeContext) *cobra.Command {
 }
 
 func newDBLintCommand(ctx RuntimeContext) *cobra.Command {
-	var options dbWorkspaceOptions
 	var schema []string
 	var level = utils.EnumFlag{Allowed: lint.AllowedLevels, Value: lint.AllowedLevels[0]}
 	var fail = utils.EnumFlag{Allowed: append([]string{"none"}, lint.AllowedLevels...), Value: "none"}
 	cmd := &cobra.Command{Use: "lint", Short: "Checks local database for typing error", RunE: func(cmd *cobra.Command, args []string) error {
 		return lint.Run(cmd.Context(), schema, level.Value, fail.Value, flags.DbConfig, ctx.FS)
 	}}
+	SetAuthPolicy(cmd, AuthPolicyNone)
 	cmd.Flags().String("db-url", "", "Lints the database specified by the connection string (must be percent-encoded).")
-	cmd.Flags().Bool("linked", false, "Lints the linked project for schema errors.")
-	cmd.Flags().Bool("local", true, "Lints the local database for schema errors.")
-	cmd.MarkFlagsMutuallyExclusive("db-url", "linked", "local")
-	addDBProjectFlags(cmd, &options)
 	cmd.Flags().StringSliceVarP(&schema, "schema", "s", nil, "Comma separated list of schema to include.")
 	cmd.Flags().Var(&level, "level", "Error level to emit.")
 	cmd.Flags().Var(&fail, "fail-on", "Error level to exit with non-zero status.")

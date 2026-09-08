@@ -62,6 +62,7 @@ func newInitCommand(ctx RuntimeContext) *cobra.Command {
 			fmt.Fprintln(ctx.Output, "Finished "+utils.Aqua("byted-supabase-cli init")+".")
 		},
 	}
+	SetAuthPolicy(cmd, AuthPolicyNone)
 	flags := cmd.Flags()
 	flags.BoolVarP(&options.Interactive, "interactive", "i", false, "Enables interactive mode to configure IDE settings.")
 	flags.BoolVar(&options.Params.UseOrioleDB, "use-orioledb", false, "Use OrioleDB storage engine for Postgres.")

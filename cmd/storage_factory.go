@@ -34,6 +34,7 @@ func newStorageCommand(ctx RuntimeContext) *cobra.Command {
 		Use:     "storage",
 		Short:   "Manage Supabase Storage Objects",
 	}
+	SetAuthPolicy(cmd, AuthPolicyVolcengine)
 	cmd.AddCommand(
 		newStorageListCommand(ctx),
 		newStorageCopyCommand(ctx),
@@ -83,11 +84,11 @@ func newStorageListCommand(ctx RuntimeContext) *cobra.Command {
 			if len(args) > 0 {
 				objectPath = args[0]
 			}
-			cfg, err := volcengine.LoadConfigFromEnv()
+			client, err := volcengineClientFromAuth(cmd)
 			if err != nil {
 				return err
 			}
-			return ls.RunVolcengine(cmd.Context(), volcengine.NewClient(cfg), parent.WorkspaceID, parent.BranchID, objectPath, recursive, afero.NewOsFs())
+			return ls.RunVolcengine(cmd.Context(), client, parent.WorkspaceID, parent.BranchID, objectPath, recursive, afero.NewOsFs())
 		},
 	}
 	cmd.Flags().BoolVarP(&recursive, "recursive", "r", false, "Recursively list a directory.")
@@ -107,7 +108,7 @@ func newStorageCopyCommand(ctx RuntimeContext) *cobra.Command {
 			return prepareStorageWorkspace(cmd, parent, "Which project do you want to copy Storage objects for?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := volcengine.LoadConfigFromEnv()
+			client, err := volcengineClientFromAuth(cmd)
 			if err != nil {
 				return err
 			}
@@ -115,7 +116,7 @@ func newStorageCopyCommand(ctx RuntimeContext) *cobra.Command {
 				fileOptions.CacheControl = options.CacheControl
 				fileOptions.ContentType = options.ContentType
 			}
-			return cp.RunVolcengine(cmd.Context(), volcengine.NewClient(cfg), parent.WorkspaceID, parent.BranchID, args[0], args[1], recursive, maxJobs, afero.NewOsFs(), opts)
+			return cp.RunVolcengine(cmd.Context(), client, parent.WorkspaceID, parent.BranchID, args[0], args[1], recursive, maxJobs, afero.NewOsFs(), opts)
 		},
 	}
 	cmd.Flags().BoolVarP(&recursive, "recursive", "r", false, "Recursively copy a directory.")
@@ -137,11 +138,11 @@ func newStorageMoveCommand(ctx RuntimeContext) *cobra.Command {
 			return prepareStorageWorkspace(cmd, parent, "Which project do you want to move Storage objects for?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := volcengine.LoadConfigFromEnv()
+			client, err := volcengineClientFromAuth(cmd)
 			if err != nil {
 				return err
 			}
-			return mv.RunVolcengine(cmd.Context(), volcengine.NewClient(cfg), parent.WorkspaceID, parent.BranchID, args[0], args[1], recursive, afero.NewOsFs())
+			return mv.RunVolcengine(cmd.Context(), client, parent.WorkspaceID, parent.BranchID, args[0], args[1], recursive, afero.NewOsFs())
 		},
 	}
 	cmd.Flags().BoolVarP(&recursive, "recursive", "r", false, "Recursively move a directory.")
@@ -159,11 +160,11 @@ func newStorageRemoveCommand(ctx RuntimeContext) *cobra.Command {
 			return prepareStorageWorkspace(cmd, parent, "Which project do you want to remove Storage objects from?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := volcengine.LoadConfigFromEnv()
+			client, err := volcengineClientFromAuth(cmd)
 			if err != nil {
 				return err
 			}
-			return rm.RunVolcengine(cmd.Context(), volcengine.NewClient(cfg), parent.WorkspaceID, parent.BranchID, args, recursive, afero.NewOsFs())
+			return rm.RunVolcengine(cmd.Context(), client, parent.WorkspaceID, parent.BranchID, args, recursive, afero.NewOsFs())
 		},
 	}
 	cmd.Flags().BoolVarP(&recursive, "recursive", "r", false, "Recursively remove a directory.")
@@ -233,7 +234,7 @@ func newStorageBucketCommand(use, short string, ctx RuntimeContext, parent *stor
 			return prepareStorageWorkspace(cmd, parent, "Which project do you want to access Storage buckets for?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			api, err := newVolcengineStorageClientFactory()
+			api, err := newVolcengineStorageClientFactory(cmd)
 			if err != nil {
 				return err
 			}
@@ -270,12 +271,8 @@ func (options storageBucketOptions) writeParams(cmd *cobra.Command, bucketID str
 	}
 }
 
-func newVolcengineStorageClientFactory() (*volcengine.Client, error) {
-	cfg, err := volcengine.LoadConfigFromEnv()
-	if err != nil {
-		return nil, err
-	}
-	return volcengine.NewClient(cfg), nil
+func newVolcengineStorageClientFactory(cmd *cobra.Command) (*volcengine.Client, error) {
+	return volcengineClientFromAuth(cmd)
 }
 
 func preRunVolcengineStorageFactory(cmd *cobra.Command, prompt string) error {

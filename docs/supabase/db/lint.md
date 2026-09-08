@@ -2,7 +2,7 @@
 
 Lints local database for schema errors.
 
-The `plpgsql_check` extension is provided by the 6.7.1 PostgreSQL kernel. To lint against a remote or self-hosted database, specify the `--linked` or `--db-url` flag respectively.
+The `plpgsql_check` extension is provided by the 6.7.1 PostgreSQL kernel. To lint against a remote or self-hosted database, specify the `--db-url` flag.
 
 Runs `plpgsql_check` extension in the local Postgres container to check for errors in all schemas. The default lint level is `warning` and can be raised to error via the `--level` flag.
 

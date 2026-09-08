@@ -35,6 +35,7 @@ byted-supabase-cli logout --all`,
 			}, ctx.Output)
 		},
 	}
+	SetAuthPolicy(cmd, AuthPolicyNone)
 	cmd.Flags().StringVarP(&options.Profile, "profile", "p", "default", "Volcengine profile name.")
 	cmd.Flags().BoolVar(&options.All, "all", false, "Log out all console-login profiles and remove all cached login credentials.")
 	return cmd

@@ -13,7 +13,6 @@ import (
 	"github.com/volcengine/byted-supabase-cli/internal/functions/list"
 	new_ "github.com/volcengine/byted-supabase-cli/internal/functions/new"
 	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
-	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 )
 
 type functionsOptions struct {
@@ -32,6 +31,7 @@ func newFunctionsCommand(ctx RuntimeContext) *cobra.Command {
 		Use:     "functions",
 		Short:   "Manage Supabase Edge Functions",
 	}
+	SetAuthPolicy(cmd, AuthPolicyVolcengine)
 	cmd.AddCommand(
 		newFunctionsListCommand(ctx),
 		newFunctionsDeleteCommand(ctx),
@@ -74,11 +74,11 @@ func newFunctionsListCommand(ctx RuntimeContext) *cobra.Command {
 			return prepareFunctionsWorkspace(cmd, &options, "Which project do you want to list Functions for?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := volcengine.LoadConfigFromEnv()
+			client, err := volcengineClientFromAuth(cmd)
 			if err != nil {
 				return err
 			}
-			return list.RunVolcengine(cmd.Context(), volcengine.NewClient(cfg), options.WorkspaceID, options.BranchID)
+			return list.RunVolcengine(cmd.Context(), client, options.WorkspaceID, options.BranchID)
 		},
 	}
 	newFunctionsWorkspaceFlags(cmd, &options)
@@ -97,11 +97,11 @@ func newFunctionsDeleteCommand(ctx RuntimeContext) *cobra.Command {
 			return prepareFunctionsWorkspace(cmd, &options, "Which project do you want to delete a Function from?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := volcengine.LoadConfigFromEnv()
+			client, err := volcengineClientFromAuth(cmd)
 			if err != nil {
 				return err
 			}
-			return delete.RunVolcengine(cmd.Context(), volcengine.NewClient(cfg), options.WorkspaceID, options.BranchID, args[0])
+			return delete.RunVolcengine(cmd.Context(), client, options.WorkspaceID, options.BranchID, args[0])
 		},
 	}
 	newFunctionsWorkspaceFlags(cmd, &options)
@@ -121,7 +121,7 @@ func newFunctionsDeployCommand(ctx RuntimeContext) *cobra.Command {
 			return prepareFunctionsWorkspace(cmd, &options, "Which project do you want to deploy Functions to?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := volcengine.LoadConfigFromEnv()
+			client, err := volcengineClientFromAuth(cmd)
 			if err != nil {
 				return err
 			}
@@ -129,7 +129,7 @@ func newFunctionsDeployCommand(ctx RuntimeContext) *cobra.Command {
 			if cmd.Flags().Changed("no-verify-jwt") {
 				jwt = &noVerifyJWT
 			}
-			return deploy.RunVolcengine(cmd.Context(), volcengine.NewClient(cfg), options.WorkspaceID, options.BranchID, args, runtime, jwt, importMap, afero.NewOsFs())
+			return deploy.RunVolcengine(cmd.Context(), client, options.WorkspaceID, options.BranchID, args, runtime, jwt, importMap, afero.NewOsFs())
 		},
 	}
 	newFunctionsWorkspaceFlags(cmd, &options)
@@ -153,6 +153,7 @@ func newFunctionsNewCommand(ctx RuntimeContext) *cobra.Command {
 			return new_.Run(cmd.Context(), args[0], runtime, afero.NewOsFs())
 		},
 	}
+	SetAuthPolicy(cmd, AuthPolicyLocal)
 	cmd.Flags().StringVar(&runtime, "runtime", deploy.RuntimeDeno, "Function runtime: deno, native-node20/v1, python3.9, python3.10, python3.12.")
 	_ = ctx
 	return cmd
@@ -172,11 +173,11 @@ func newFunctionsDownloadCommand(ctx RuntimeContext) *cobra.Command {
 			if len(args) > 0 {
 				slug = args[0]
 			}
-			cfg, err := volcengine.LoadConfigFromEnv()
+			client, err := volcengineClientFromAuth(cmd)
 			if err != nil {
 				return err
 			}
-			return download.RunVolcengine(cmd.Context(), volcengine.NewClient(cfg), options.WorkspaceID, options.BranchID, slug, afero.NewOsFs())
+			return download.RunVolcengine(cmd.Context(), client, options.WorkspaceID, options.BranchID, slug, afero.NewOsFs())
 		},
 	}
 	newFunctionsWorkspaceFlags(cmd, &options)

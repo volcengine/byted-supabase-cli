@@ -11,7 +11,6 @@ import (
 	"github.com/volcengine/byted-supabase-cli/internal/secrets/set"
 	"github.com/volcengine/byted-supabase-cli/internal/secrets/unset"
 	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
-	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 )
 
 type secretsOptions struct {
@@ -30,6 +29,7 @@ func newSecretsCommand(ctx RuntimeContext) *cobra.Command {
 		Use:     "secrets",
 		Short:   "Manage Supabase Secrets",
 	}
+	SetAuthPolicy(cmd, AuthPolicyVolcengine)
 	cmd.AddCommand(
 		newSecretsListCommand(ctx),
 		newSecretsSetCommand(ctx),
@@ -73,11 +73,11 @@ func newSecretsListCommand(ctx RuntimeContext) *cobra.Command {
 			return prepareSecretsWorkspace(cmd, &options, "Which project do you want to list secrets for?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := volcengine.LoadConfigFromEnv()
+			client, err := volcengineClientFromAuth(cmd)
 			if err != nil {
 				return err
 			}
-			return list.RunVolcengine(cmd.Context(), volcengine.NewClient(cfg), options.WorkspaceID, options.BranchID)
+			return list.RunVolcengine(cmd.Context(), client, options.WorkspaceID, options.BranchID)
 		},
 	}
 	addSecretsWorkspaceFlags(cmd, &options)
@@ -97,11 +97,11 @@ func newSecretsSetCommand(ctx RuntimeContext) *cobra.Command {
 			return prepareSecretsWorkspace(cmd, &options, "Which project do you want to set secrets for?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := volcengine.LoadConfigFromEnv()
+			client, err := volcengineClientFromAuth(cmd)
 			if err != nil {
 				return err
 			}
-			return set.RunVolcengine(cmd.Context(), volcengine.NewClient(cfg), options.WorkspaceID, options.BranchID, envFile, args, afero.NewOsFs())
+			return set.RunVolcengine(cmd.Context(), client, options.WorkspaceID, options.BranchID, envFile, args, afero.NewOsFs())
 		},
 	}
 	addSecretsWorkspaceFlags(cmd, &options)
@@ -121,11 +121,11 @@ func newSecretsUnsetCommand(ctx RuntimeContext) *cobra.Command {
 			return prepareSecretsWorkspace(cmd, &options, "Which project do you want to unset secrets from?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := volcengine.LoadConfigFromEnv()
+			client, err := volcengineClientFromAuth(cmd)
 			if err != nil {
 				return err
 			}
-			return unset.RunVolcengine(cmd.Context(), volcengine.NewClient(cfg), options.WorkspaceID, options.BranchID, args)
+			return unset.RunVolcengine(cmd.Context(), client, options.WorkspaceID, options.BranchID, args)
 		},
 	}
 	addSecretsWorkspaceFlags(cmd, &options)

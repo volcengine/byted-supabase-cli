@@ -10,7 +10,6 @@ import (
 	"github.com/volcengine/byted-supabase-cli/internal/seed/buckets"
 	"github.com/volcengine/byted-supabase-cli/internal/utils"
 	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
-	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 )
 
 type seedOptions struct {
@@ -28,6 +27,7 @@ func newSeedCommand(ctx RuntimeContext) *cobra.Command {
 		Use:     "seed",
 		Short:   "Manage Supabase Seed Data from " + utils.ConfigPath,
 	}
+	SetAuthPolicy(cmd, AuthPolicyVolcengine)
 	cmd.AddCommand(newSeedBucketsCommand(ctx))
 	return cmd
 }
@@ -72,11 +72,11 @@ func newSeedBucketsCommand(ctx RuntimeContext) *cobra.Command {
 			if err := flags.LoadConfig(fsys); err != nil {
 				return err
 			}
-			cfg, err := volcengine.LoadConfigFromEnv()
+			client, err := volcengineClientFromAuth(cmd)
 			if err != nil {
 				return err
 			}
-			return buckets.RunVolcengine(cmd.Context(), volcengine.NewClient(cfg), options.WorkspaceID, branchID, true, fsys)
+			return buckets.RunVolcengine(cmd.Context(), client, options.WorkspaceID, branchID, true, fsys)
 		},
 	}
 	cmd.Flags().StringVar(&branchID, "branch-id", "", "Branch ID of the Volcengine Supabase project. Defaults to the workspace default branch.")

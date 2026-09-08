@@ -218,12 +218,7 @@ func GenYamlDoc(cmd *cobra.Command, root *SpecDoc) CmdDoc {
 				yamlDoc.Flags = append(yamlDoc.Flags, getFlags(flag))
 			}
 		})
-		// Print required flag for experimental commands
 		globalFlags := cmd.Root().Flags()
-		if cli.IsExperimental(cmd) {
-			flag := globalFlags.Lookup("experimental")
-			yamlDoc.Flags = append(yamlDoc.Flags, getFlags(flag))
-		}
 		// Leaf commands should inherit parent flags except root
 		parentFlags := cmd.InheritedFlags()
 		parentFlags.VisitAll(func(flag *pflag.Flag) {

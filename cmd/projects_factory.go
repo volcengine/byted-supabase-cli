@@ -36,6 +36,7 @@ func projectsCommandGroup() CommandGroup {
 
 func newProjectsCommand(ctx RuntimeContext) *cobra.Command {
 	cmd := &cobra.Command{GroupID: groupManagementAPI, Use: "projects", Short: "Manage Volcengine Supabase Workspaces"}
+	SetAuthPolicy(cmd, AuthPolicyVolcengine)
 	cmd.AddCommand(
 		newProjectsCreateCommand(ctx),
 		newProjectsDeleteCommand(ctx),

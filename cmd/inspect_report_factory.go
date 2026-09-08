@@ -24,6 +24,7 @@ func newInspectReportCommand(ctx RuntimeContext) *cobra.Command {
 			})
 		},
 	}
+	SetAuthPolicy(cmd, AuthPolicyVolcengine)
 	addInspectTargetFlags(cmd, &options)
 	cmd.Flags().StringVar(&options.OutputDir, "output-dir", ".", "Path to save CSV files in")
 	return cmd

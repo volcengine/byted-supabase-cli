@@ -39,4 +39,12 @@ func TestDBFactoryCommandTree(t *testing.T) {
 	apiConfig, _, err := command.Find([]string{"api-config"})
 	require.NoError(t, err)
 	require.Len(t, apiConfig.Commands(), 2)
+
+	lint, _, err := command.Find([]string{"lint"})
+	require.NoError(t, err)
+	require.Nil(t, lint.Flag("linked"))
+	require.Nil(t, lint.Flag("local"))
+	require.Nil(t, lint.Flag("workspace-id"))
+	require.Nil(t, lint.Flag("project-ref"))
+	require.NotNil(t, lint.Flag("db-url"))
 }

@@ -60,6 +60,7 @@ func newInspectRunnerCommand(ctx RuntimeContext, use, short string, runner inspe
 		PreRunE: func(cmd *cobra.Command, args []string) error { return preRunInspectFactory(cmd, ctx.FS, &options) },
 		RunE:    func(cmd *cobra.Command, args []string) error { return runInspectFactory(cmd, ctx.FS, &options, runner) },
 	}
+	SetAuthPolicy(cmd, AuthPolicyVolcengine)
 	addInspectTargetFlags(cmd, &options)
 	return cmd
 }

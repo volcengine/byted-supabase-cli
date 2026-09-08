@@ -72,6 +72,7 @@ byted-supabase-cli login --skip-region`,
 			}, input, ctx.Output)
 		},
 	}
+	SetAuthPolicy(cmd, AuthPolicyNone)
 	flags := cmd.Flags()
 	flags.StringVarP(&options.Profile, "profile", "p", "default", "Volcengine profile name.")
 	flags.StringVarP(&options.Region, "region", "r", "", "Volcengine region. Prompts when omitted; empty input defaults to cn-beijing.")

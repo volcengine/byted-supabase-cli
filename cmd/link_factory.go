@@ -9,7 +9,6 @@ import (
 	"os"
 
 	"github.com/go-errors/errors"
-	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/volcengine/byted-supabase-cli/internal/link"
@@ -30,14 +29,15 @@ func newLinkCommand(ctx RuntimeContext) *cobra.Command {
 		GroupID: groupLocalDev,
 		Use:     "link",
 		Short:   "Link to a Supabase Project",
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return volcengine.RequireAccessKeysEnv()
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := ensureVolcengineRegion(cmd.Context(), ctx.FS, false); err != nil {
 				return err
 			}
-			if err := parseVolcengineWorkspaceIDFactory(cmd.Context(), ctx.FS, &options); err != nil {
+			client, err := volcengineClientFromAuth(cmd)
+			if err != nil {
+				return err
+			}
+			if err := parseVolcengineWorkspaceIDFactory(cmd.Context(), client, &options); err != nil {
 				return err
 			}
 			if err := flags.LoadConfig(ctx.FS); err != nil {
@@ -49,6 +49,7 @@ func newLinkCommand(ctx RuntimeContext) *cobra.Command {
 			fmt.Fprintln(ctx.Output, "Finished "+utils.Aqua("byted-supabase-cli link")+".")
 		},
 	}
+	SetAuthPolicy(cmd, AuthPolicyVolcengine)
 	cmd.Flags().StringVar(&options.WorkspaceID, "project-ref", "", "Alias of --workspace-id for compatibility with Supabase CLI project ref.")
 	markFlagTelemetrySafe(cmd.Flags().Lookup("project-ref"))
 	cmd.Flags().StringVar(&options.WorkspaceID, "workspace-id", "", "Workspace ID of the Volcengine Supabase project.")
@@ -57,7 +58,7 @@ func newLinkCommand(ctx RuntimeContext) *cobra.Command {
 	return cmd
 }
 
-func parseVolcengineWorkspaceIDFactory(ctx context.Context, fsys afero.Fs, options *linkOptions) error {
+func parseVolcengineWorkspaceIDFactory(ctx context.Context, client *volcengine.Client, options *linkOptions) error {
 	if options.WorkspaceID != "" {
 		return nil
 	}
@@ -67,11 +68,7 @@ func parseVolcengineWorkspaceIDFactory(ctx context.Context, fsys afero.Fs, optio
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		return errors.New("missing workspace id. Supply --workspace-id or --project-ref.")
 	}
-	cfg, err := volcengine.LoadConfigFromEnv()
-	if err != nil {
-		return errors.Errorf("failed to list volcengine workspaces: %w", err)
-	}
-	result, err := volcengine.NewClient(cfg).ListWorkspaces(ctx, volcengine.ListWorkspacesParams{
+	result, err := client.ListWorkspaces(ctx, volcengine.ListWorkspacesParams{
 		ProjectName: options.ProjectName,
 		Limit:       volcenginePromptWorkspaceLimit,
 	})

@@ -34,6 +34,7 @@ func newComputesCommand(ctx RuntimeContext) *cobra.Command {
 		Use:     "computes",
 		Short:   "Manage Volcengine Computes in a Supabase Workspace",
 	}
+	SetAuthPolicy(cmd, AuthPolicyVolcengine)
 	cmd.AddCommand(
 		newComputesListCommand(ctx),
 		newComputesGetCommand(ctx),

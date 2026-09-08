@@ -60,6 +60,7 @@ func aiGatewayCommandGroup() CommandGroup {
 
 func newAIGatewayCommand(ctx RuntimeContext) *cobra.Command {
 	cmd := &cobra.Command{GroupID: groupManagementAPI, Use: "ai-gateway", Short: "Manage Supabase AI Gateway for a Workspace Branch"}
+	SetAuthPolicy(cmd, AuthPolicyVolcengine)
 	cmd.AddCommand(
 		newAIGatewayStatusCmd(ctx),
 		newAIGatewayConfigCmd(ctx),
@@ -321,11 +322,14 @@ func resolveAIGateway(cmd *cobra.Command, fsys afero.Fs, options *aiGatewayWorks
 	} else if err := ensureVolcengineRegion(cmd.Context(), fsys, false); err != nil {
 		return volcengine.Config{}, "", err
 	}
-	cfg, err := volcengine.LoadConfigFromEnv()
+	cfg, err := volcengineConfigFromAuth(cmd)
 	if err != nil {
 		return volcengine.Config{}, "", err
 	}
-	client := volcengine.NewClient(cfg)
+	client, err := volcengineClientFromAuth(cmd)
+	if err != nil {
+		return volcengine.Config{}, "", err
+	}
 	branchID := options.BranchID
 	if branchID == "" {
 		branch, err := client.ResolveDefaultBranch(cmd.Context(), options.WorkspaceID)

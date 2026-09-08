@@ -42,6 +42,9 @@ func TestInspectFactoryCommandTree(t *testing.T) {
 	command := newInspectCommand(defaultRuntimeContext())
 	require.Equal(t, "inspect", command.Name())
 	require.Len(t, command.Commands(), 2)
+	policy, err := ResolveAuthPolicy(command, nil)
+	require.NoError(t, err)
+	require.Equal(t, AuthPolicyNone, policy)
 	require.Nil(t, command.Flags().Lookup("db-url"))
 	require.Nil(t, command.PersistentFlags().Lookup("db-url"))
 
@@ -49,6 +52,32 @@ func TestInspectFactoryCommandTree(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, db.Commands())
 	require.NotNil(t, command.CommandPath())
+}
+
+func TestInspectAuthPolicyUsesVolcengineForWorkspaceAndNoneForDBURL(t *testing.T) {
+	command := newInspectCommand(defaultRuntimeContext())
+
+	stats, _, err := command.Find([]string{"db", "db-stats"})
+	require.NoError(t, err)
+	policy, err := ResolveAuthPolicy(stats, nil)
+	require.NoError(t, err)
+	require.Equal(t, AuthPolicyVolcengine, policy)
+
+	require.NoError(t, stats.Flags().Set("db-url", "postgres://user:password@localhost:5432/db"))
+	policy, err = ResolveAuthPolicy(stats, nil)
+	require.NoError(t, err)
+	require.Equal(t, AuthPolicyNone, policy)
+
+	report, _, err := command.Find([]string{"report"})
+	require.NoError(t, err)
+	policy, err = ResolveAuthPolicy(report, nil)
+	require.NoError(t, err)
+	require.Equal(t, AuthPolicyVolcengine, policy)
+
+	require.NoError(t, report.Flags().Set("db-url", "postgres://user:password@localhost:5432/db"))
+	policy, err = ResolveAuthPolicy(report, nil)
+	require.NoError(t, err)
+	require.Equal(t, AuthPolicyNone, policy)
 }
 
 func TestInspectLeafFlagsAreIsolated(t *testing.T) {

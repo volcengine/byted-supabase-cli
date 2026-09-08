@@ -282,26 +282,6 @@ func printVolcengineDebugProfile() {
 	fmt.Fprintf(os.Stderr, "Using Volcengine profile: %s (%s)\n", profileName, region)
 }
 
-var experimental = []*cobra.Command{
-	// Volcengine currently has no equivalent API for Supabase network bans.
-	// Keep the original command implementation for reference, but do not register
-	// or gate it as an experimental command in the Volcengine CLI.
-	// bansCmd,
-	vanityCmd,
-	sslEnforcementCmd,
-	postgresCmd,
-	dbDeclarativeCmd,
-}
-
-func IsExperimental(cmd *cobra.Command) bool {
-	for _, exp := range experimental {
-		if cmd == exp || cmd.Parent() == exp {
-			return true
-		}
-	}
-	return false
-}
-
 var (
 	sentryOpts = sentry.ClientOptions{
 		Dsn:        utils.SentryDsn,
@@ -317,6 +297,8 @@ var (
 	rootProfile  string
 
 	rootCmd *cobra.Command
+
+	rootAuthenticator Authenticator = NewCommandAuthenticator(nil, nil)
 )
 
 func newRootCommand() *cobra.Command {

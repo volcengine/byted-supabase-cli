@@ -39,6 +39,7 @@ type configureAgentPlanOptions struct {
 func newConfigureCommand(ctx RuntimeContext) *cobra.Command {
 	var options configureParentOptions
 	cmd := &cobra.Command{GroupID: groupLocalDev, Use: "configure", Short: "Manage Volcengine CLI Configuration"}
+	SetAuthPolicy(cmd, AuthPolicyNone)
 	cmd.AddCommand(
 		newConfigureSetCommand(ctx, &options),
 		newConfigureGetCommand(ctx, &options),

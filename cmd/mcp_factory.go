@@ -27,6 +27,7 @@ func newMCPCommand(ctx RuntimeContext) *cobra.Command {
 		Use:     "mcp",
 		Short:   "Model Context Protocol Server",
 	}
+	SetAuthPolicy(cmd, AuthPolicyVolcengine)
 	cmd.AddCommand(newMCPServeCommand(ctx))
 	return cmd
 }

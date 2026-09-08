@@ -28,6 +28,7 @@ func newEndpointsCommand(ctx RuntimeContext) *cobra.Command {
 		Use:     "endpoints",
 		Short:   "Manage Volcengine Supabase Workspace Endpoints",
 	}
+	SetAuthPolicy(cmd, AuthPolicyVolcengine)
 	cmd.AddCommand(
 		newEndpointsListCommand(ctx),
 		newEndpointsEnablePublicCommand(ctx),

@@ -29,6 +29,7 @@ func newBranchesCommandFactory(ctx RuntimeContext) *cobra.Command {
 		Use:     "branches",
 		Short:   "Manage Volcengine Supabase Preview Branches",
 	}
+	SetAuthPolicy(cmd, AuthPolicyVolcengine)
 	cmd.AddCommand(
 		newBranchesCreateCommand(ctx),
 		newBranchesListCommand(ctx),

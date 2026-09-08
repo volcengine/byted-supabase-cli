@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"net/url"
 	"os"
@@ -10,7 +9,6 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/go-errors/errors"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -19,36 +17,31 @@ import (
 	"github.com/volcengine/byted-supabase-cli/internal/utils"
 	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
+	"golang.org/x/term"
 )
 
 func rootPersistentPreRunE(cmd *cobra.Command, args []string) error {
-	if IsExperimental(cmd) && !viper.GetBool("EXPERIMENTAL") {
-		return errors.New("must set the --experimental flag to run this command")
-	}
 	cmd.SilenceUsage = true
 	ctx, _ := signal.NotifyContext(cmd.Context(), os.Interrupt)
 	fsys := afero.NewOsFs()
-	isRemote := isVolcengineRemoteDataPlaneCommand(cmd)
-	isVolcengine := isVolcengineManagementCommand(cmd) || isRemote
-	if err := runtimecli.PrepareAuth(ctx, cmd, fsys, IsManagementAPI(cmd), isVolcengine, runtimecli.AuthHooks{
-		LoadProfile: utils.LoadProfile,
-		PromptLogin: promptLogin,
-		ParseProjectRef: func(ctx context.Context, fsys afero.Fs) error {
-			if cmd.Flags().Lookup("project-ref") == nil || isVolcengine {
-				return nil
-			}
-			return flags.ParseProjectRef(ctx, fsys)
-		},
-	}); err != nil {
-		return err
-	}
-	if err := utils.ChangeWorkDir(fsys); err != nil {
-		return err
-	}
 	profileChanged := cmd.Root().PersistentFlags().Lookup("profile") != nil &&
 		cmd.Root().PersistentFlags().Lookup("profile").Changed
 	runtimecli.ApplyRegion(profileChanged, rootProfile, volcRegion, volcengine.SetProfileOverride, volcengine.SetRegionOverride)
-	if IsManagementAPI(cmd) {
+
+	authContext, err := rootAuthenticator.Authenticate(ctx, AuthRequest{
+		Command:     cmd,
+		Args:        args,
+		FS:          fsys,
+		Interactive: authInteractive(),
+	})
+	if err != nil {
+		return err
+	}
+	ctx = withAuthContext(ctx, authContext)
+	cmd.SetContext(ctx)
+	isRemote := isVolcengineRemoteDataPlaneCommand(cmd)
+	isVolcengine := authContext.Policy == AuthPolicyVolcengine
+	if authContext.Policy == AuthPolicyLocal && IsManagementAPI(cmd) {
 		if err := promptLogin(ctx, cmd, fsys); err != nil {
 			return err
 		}
@@ -57,6 +50,9 @@ func rootPersistentPreRunE(cmd *cobra.Command, args []string) error {
 				return err
 			}
 		}
+	}
+	if err := utils.ChangeWorkDir(fsys); err != nil {
+		return err
 	}
 	if err := runtimecli.ParseDatabase(ctx, cmd, fsys, isRemote); err != nil {
 		return err
@@ -88,4 +84,16 @@ func rootPersistentPreRunE(cmd *cobra.Command, args []string) error {
 	}
 	sentryOpts.Environment = apiHost.Host
 	return sentry.Init(sentryOpts)
+}
+
+func authInteractive() bool {
+	return authInteractiveWithTTY(
+		utils.IsAgentMode(),
+		term.IsTerminal(int(os.Stdin.Fd())),
+		term.IsTerminal(int(os.Stdout.Fd())),
+	)
+}
+
+func authInteractiveWithTTY(agentMode, stdinTTY, stdoutTTY bool) bool {
+	return !agentMode && stdinTTY && stdoutTTY
 }

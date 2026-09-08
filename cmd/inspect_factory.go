@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 	dbconnection "github.com/volcengine/byted-supabase-cli/internal/db/connection"
 	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
-	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 )
 
 type inspectOptions struct {
@@ -32,6 +31,7 @@ func newInspectCommand(ctx RuntimeContext) *cobra.Command {
 		Use:     "inspect",
 		Short:   "Tools to Inspect Your Supabase Project",
 	}
+	SetAuthPolicy(cmd, AuthPolicyNone)
 	cmd.AddCommand(
 		newInspectDBCommand(ctx),
 		newInspectReportCommand(ctx),
@@ -76,11 +76,11 @@ func preRunInspectFactory(cmd *cobra.Command, fsys afero.Fs, options *inspectOpt
 func runInspectFactory(cmd *cobra.Command, fsys afero.Fs, options *inspectOptions, runner inspectRunnerFactory) error {
 	config := flags.DbConfig
 	if !cmd.Flags().Changed("db-url") {
-		cfg, err := volcengine.LoadConfigFromEnv()
+		client, err := volcengineClientFromAuth(cmd)
 		if err != nil {
 			return err
 		}
-		config, err = dbconnection.GetVolcengineConfig(cmd.Context(), volcengine.NewClient(cfg), dbconnection.VolcengineParams{WorkspaceID: options.WorkspaceID, BranchID: options.BranchID})
+		config, err = dbconnection.GetVolcengineConfig(cmd.Context(), client, dbconnection.VolcengineParams{WorkspaceID: options.WorkspaceID, BranchID: options.BranchID})
 		if err != nil {
 			return err
 		}

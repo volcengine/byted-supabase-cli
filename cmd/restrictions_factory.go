@@ -30,6 +30,7 @@ func newNetworkRestrictionsCommand(ctx RuntimeContext) *cobra.Command {
 		Use:     "network-restrictions",
 		Short:   "Manage Volcengine Network Restrictions",
 	}
+	SetAuthPolicy(cmd, AuthPolicyVolcengine)
 	cmd.AddCommand(
 		newNetworkRestrictionsGetCommand(ctx),
 		newNetworkRestrictionsCreateCommand(ctx),

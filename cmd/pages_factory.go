@@ -26,6 +26,7 @@ func newPagesCommand(ctx RuntimeContext) *cobra.Command {
 		Use:     "pages",
 		Short:   "Manage Volcengine IGA Pages Integrations for Supabase",
 	}
+	SetAuthPolicy(cmd, AuthPolicyVolcengine)
 	cmd.AddCommand(
 		newPagesListCommand(ctx),
 		newPagesEnvVarsCommand(ctx),

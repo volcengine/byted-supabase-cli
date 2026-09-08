@@ -22,6 +22,7 @@ type authWorkspaceOptions struct {
 
 func newAuthCommand(ctx RuntimeContext) *cobra.Command {
 	cmd := &cobra.Command{GroupID: groupManagementAPI, Use: "auth", Short: "Manage Supabase Auth Configuration"}
+	SetAuthPolicy(cmd, AuthPolicyVolcengine)
 	cmd.AddCommand(
 		newAuthConfigCommand(ctx),
 		newAuthHooksCommand(ctx),
@@ -54,12 +55,8 @@ func prepareAuthWorkspace(cmd *cobra.Command, fsys afero.Fs, options *authWorksp
 	return err
 }
 
-func authClient() (*volcengine.Client, error) {
-	cfg, err := volcengine.LoadConfigFromEnv()
-	if err != nil {
-		return nil, err
-	}
-	return volcengine.NewClient(cfg), nil
+func authClient(cmd *cobra.Command) (*volcengine.Client, error) {
+	return volcengineClientFromAuth(cmd)
 }
 
 func newAuthConfigCommand(ctx RuntimeContext) *cobra.Command {
@@ -79,7 +76,7 @@ func newAuthConfigGetCommand(ctx RuntimeContext) *cobra.Command {
 			return prepareAuthWorkspace(cmd, ctx.FS, &options, "Which project do you want to get auth config for?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := authClient()
+			client, err := authClient(cmd)
 			if err != nil {
 				return err
 			}
@@ -98,7 +95,7 @@ func newAuthConfigSetCommand(ctx RuntimeContext) *cobra.Command {
 			return prepareAuthWorkspace(cmd, ctx.FS, &options, "Which project do you want to set auth config for?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := authClient()
+			client, err := authClient(cmd)
 			if err != nil {
 				return err
 			}
@@ -123,7 +120,7 @@ func newAuthHooksGetCommand(ctx RuntimeContext) *cobra.Command {
 			return prepareAuthWorkspace(cmd, ctx.FS, &options, "Which project do you want to get hooks config for?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := authClient()
+			client, err := authClient(cmd)
 			if err != nil {
 				return err
 			}
@@ -142,7 +139,7 @@ func newAuthHooksSetCommand(ctx RuntimeContext) *cobra.Command {
 			return prepareAuthWorkspace(cmd, ctx.FS, &options, "Which project do you want to set hooks config for?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := authClient()
+			client, err := authClient(cmd)
 			if err != nil {
 				return err
 			}
@@ -171,7 +168,7 @@ func newAuthTPListCommand(ctx RuntimeContext) *cobra.Command {
 			return prepareAuthWorkspace(cmd, ctx.FS, &options, "Which project do you want to list third-party providers for?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := authClient()
+			client, err := authClient(cmd)
 			if err != nil {
 				return err
 			}
@@ -196,7 +193,7 @@ func newAuthTPAddCommand(ctx RuntimeContext) *cobra.Command {
 			return prepareAuthWorkspace(cmd, ctx.FS, &options.authWorkspaceOptions, "Which project do you want to add a third-party provider to?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := authClient()
+			client, err := authClient(cmd)
 			if err != nil {
 				return err
 			}
@@ -221,7 +218,7 @@ func newAuthTPRemoveCommand(ctx RuntimeContext) *cobra.Command {
 			return prepareAuthWorkspace(cmd, ctx.FS, &options, "Which project do you want to remove the third-party provider from?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := authClient()
+			client, err := authClient(cmd)
 			if err != nil {
 				return err
 			}
@@ -238,7 +235,7 @@ func newAuthTPSyncCommand(ctx RuntimeContext) *cobra.Command {
 			return prepareAuthWorkspace(cmd, ctx.FS, &options, "Which project do you want to sync third-party providers for?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := authClient()
+			client, err := authClient(cmd)
 			if err != nil {
 				return err
 			}

@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/h2non/gock"
 	"github.com/spf13/afero"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/volcengine/byted-supabase-cli/internal/testing/apitest"
@@ -21,6 +22,10 @@ import (
 func TestCreateCommand(t *testing.T) {
 	// Setup valid project ref
 	flags.ProjectRef = apitest.RandomProjectRef()
+	viper.Set("YES", true)
+	t.Cleanup(func() {
+		viper.Set("YES", false)
+	})
 
 	t.Run("creates preview branch", func(t *testing.T) {
 		// Setup valid access token
