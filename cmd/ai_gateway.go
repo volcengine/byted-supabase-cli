@@ -66,11 +66,273 @@ func newAIGatewayCommand(ctx RuntimeContext) *cobra.Command {
 		newAIGatewayConfigCmd(ctx),
 		newAIGatewayAPIKeysCmd(ctx),
 		newAIGatewayModelsCmd(ctx),
+		newAIGatewayQuotaCmd(ctx),
+		newAIGatewayUsageCmd(ctx),
 		newAIGatewayChatCmd(ctx),
 		newAIGatewayTestCmd(ctx),
 		newAIGatewayInitCmd(ctx),
 	)
 	return cmd
+}
+
+func newAIGatewayQuotaCmd(ctx RuntimeContext) *cobra.Command {
+	cmd := &cobra.Command{Use: "quota", Short: "Manage AI Gateway token quotas"}
+	cmd.AddCommand(
+		newAIGatewayQuotaGetCmd(ctx),
+		newAIGatewayQuotaSetDefaultCmd(ctx),
+		newAIGatewayQuotaUsersCmd(ctx),
+	)
+	return cmd
+}
+
+func newAIGatewayQuotaGetCmd(ctx RuntimeContext) *cobra.Command {
+	var workspace aiGatewayWorkspaceOptions
+	cmd := &cobra.Command{
+		Use:   "get",
+		Short: "Show the default daily AI Gateway token quota",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, workspaceID, branchID, err := resolveAIGatewayManagementTarget(cmd, &workspace)
+			if err != nil {
+				return err
+			}
+			quota, err := client.DescribeAIGlobalQuota(cmd.Context(), workspaceID, branchID)
+			if err != nil {
+				return err
+			}
+			return utils.EncodeOutput(utils.OutputFormat.Value, ctx.Output, map[string]interface{}{
+				"workspace_id": workspaceID, "branch_id": branchID,
+				"daily_token_limit": quota.DailyTokenLimit,
+				"daily_image_limit": quota.DailyImageLimit,
+			})
+		},
+	}
+	addAIGatewayWorkspaceFlags(cmd, &workspace)
+	return cmd
+}
+
+func newAIGatewayQuotaSetDefaultCmd(ctx RuntimeContext) *cobra.Command {
+	var workspace aiGatewayWorkspaceOptions
+	var tokenLimit, imageLimit int64
+	cmd := &cobra.Command{
+		Use:   "set-default",
+		Short: "Set the default daily AI Gateway token quota",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, workspaceID, branchID, err := resolveAIGatewayManagementTarget(cmd, &workspace)
+			if err != nil {
+				return err
+			}
+			var tokenLimitPtr, imageLimitPtr *int64
+			if cmd.Flags().Changed("token-limit") {
+				tokenLimitPtr = &tokenLimit
+			}
+			if cmd.Flags().Changed("image-limit") {
+				imageLimitPtr = &imageLimit
+			}
+			if tokenLimitPtr == nil && imageLimitPtr == nil {
+				return errors.New("at least one of --token-limit or --image-limit is required")
+			}
+			if err := client.ModifyAIGlobalQuotaWithLimits(cmd.Context(), workspaceID, branchID, tokenLimitPtr, imageLimitPtr); err != nil {
+				return err
+			}
+			return utils.EncodeOutput(utils.OutputFormat.Value, ctx.Output, map[string]interface{}{
+				"workspace_id": workspaceID, "branch_id": branchID,
+				"daily_token_limit": tokenLimitPtr,
+				"daily_image_limit": imageLimitPtr,
+			})
+		},
+	}
+	addAIGatewayWorkspaceFlags(cmd, &workspace)
+	cmd.Flags().Int64Var(&tokenLimit, "token-limit", 0, "Daily token limit per user. Use -1 for unlimited.")
+	cmd.Flags().Int64Var(&imageLimit, "image-limit", 0, "Daily image generation limit per user. Use -1 for unlimited.")
+	return cmd
+}
+
+func newAIGatewayQuotaUsersCmd(ctx RuntimeContext) *cobra.Command {
+	cmd := &cobra.Command{Use: "users", Short: "Manage per-user AI Gateway token quotas"}
+	cmd.AddCommand(
+		newAIGatewayQuotaUsersListCmd(ctx),
+		newAIGatewayQuotaUsersGetCmd(ctx),
+		newAIGatewayQuotaUsersSetCmd(ctx),
+	)
+	return cmd
+}
+
+func newAIGatewayQuotaUsersListCmd(ctx RuntimeContext) *cobra.Command {
+	var workspace aiGatewayWorkspaceOptions
+	var limit, offset int
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List AI Gateway users, quotas, and token usage",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateVolcenginePageFlags(limit, offset, false); err != nil {
+				return err
+			}
+			client, workspaceID, branchID, err := resolveAIGatewayManagementTarget(cmd, &workspace)
+			if err != nil {
+				return err
+			}
+			result, err := client.DescribeAIUserSummaries(cmd.Context(), volcengine.DescribeAIUserSummariesParams{
+				WorkspaceID: workspaceID, BranchID: branchID, Limit: limit, Offset: offset,
+			})
+			if err != nil {
+				return err
+			}
+			return utils.EncodeOutput(utils.OutputFormat.Value, ctx.Output, result)
+		},
+	}
+	addAIGatewayWorkspaceFlags(cmd, &workspace)
+	cmd.Flags().IntVar(&limit, "limit", volcengineDefaultListLimit, "Maximum number of users to return (1-100).")
+	cmd.Flags().IntVar(&offset, "offset", 0, "Number of users to skip.")
+	return cmd
+}
+
+func newAIGatewayQuotaUsersGetCmd(ctx RuntimeContext) *cobra.Command {
+	var workspace aiGatewayWorkspaceOptions
+	var userID string
+	cmd := &cobra.Command{
+		Use:   "get",
+		Short: "Show one AI Gateway user's quota and token usage",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if strings.TrimSpace(userID) == "" {
+				return errors.New("missing required flag: --user-id")
+			}
+			client, workspaceID, branchID, err := resolveAIGatewayManagementTarget(cmd, &workspace)
+			if err != nil {
+				return err
+			}
+			for offset := 0; ; offset += 100 {
+				result, err := client.DescribeAIUserSummaries(cmd.Context(), volcengine.DescribeAIUserSummariesParams{
+					WorkspaceID: workspaceID, BranchID: branchID, Limit: 100, Offset: offset,
+				})
+				if err != nil {
+					return err
+				}
+				for _, user := range result.Users {
+					if user.UserID == userID {
+						return utils.EncodeOutput(utils.OutputFormat.Value, ctx.Output, user)
+					}
+				}
+				if len(result.Users) == 0 || offset+len(result.Users) >= result.Total {
+					break
+				}
+			}
+			return fmt.Errorf("AI Gateway user %q not found", userID)
+		},
+	}
+	addAIGatewayWorkspaceFlags(cmd, &workspace)
+	cmd.Flags().StringVar(&userID, "user-id", "", "User ID.")
+	return cmd
+}
+
+func newAIGatewayQuotaUsersSetCmd(ctx RuntimeContext) *cobra.Command {
+	var workspace aiGatewayWorkspaceOptions
+	var userID string
+	var tokenLimit, imageLimit int64
+	cmd := &cobra.Command{
+		Use:   "set",
+		Short: "Set one AI Gateway user's daily token quota",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if strings.TrimSpace(userID) == "" {
+				return errors.New("missing required flag: --user-id")
+			}
+			client, workspaceID, branchID, err := resolveAIGatewayManagementTarget(cmd, &workspace)
+			if err != nil {
+				return err
+			}
+			var tokenLimitPtr, imageLimitPtr *int64
+			if cmd.Flags().Changed("token-limit") {
+				tokenLimitPtr = &tokenLimit
+			}
+			if cmd.Flags().Changed("image-limit") {
+				imageLimitPtr = &imageLimit
+			}
+			if tokenLimitPtr == nil && imageLimitPtr == nil {
+				return errors.New("at least one of --token-limit or --image-limit is required")
+			}
+			if err := client.ModifyAIUserQuotaWithLimits(cmd.Context(), volcengine.ModifyAIUserQuotaParams{
+				WorkspaceID: workspaceID, BranchID: branchID, UserID: userID,
+				QuotaCustomized: true, DailyTokenLimit: tokenLimitPtr, DailyImageLimit: imageLimitPtr,
+			}); err != nil {
+				return err
+			}
+			return utils.EncodeOutput(utils.OutputFormat.Value, ctx.Output, map[string]interface{}{
+				"workspace_id": workspaceID, "branch_id": branchID, "user_id": userID,
+				"daily_token_limit": tokenLimitPtr,
+				"daily_image_limit": imageLimitPtr,
+			})
+		},
+	}
+	addAIGatewayWorkspaceFlags(cmd, &workspace)
+	cmd.Flags().StringVar(&userID, "user-id", "", "User ID.")
+	cmd.Flags().Int64Var(&tokenLimit, "token-limit", 0, "Daily token limit. Use -1 for unlimited.")
+	cmd.Flags().Int64Var(&imageLimit, "image-limit", 0, "Daily image generation limit. Use -1 for unlimited.")
+	return cmd
+}
+
+func newAIGatewayUsageCmd(ctx RuntimeContext) *cobra.Command {
+	var workspace aiGatewayWorkspaceOptions
+	cmd := &cobra.Command{
+		Use:   "usage",
+		Short: "Show aggregated AI Gateway token usage for a branch",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, workspaceID, branchID, err := resolveAIGatewayManagementTarget(cmd, &workspace)
+			if err != nil {
+				return err
+			}
+			usage := volcengine.AIUsage{WorkspaceID: workspaceID, BranchID: branchID}
+			for offset := 0; ; offset += 100 {
+				result, err := client.DescribeAIUserSummaries(cmd.Context(), volcengine.DescribeAIUserSummariesParams{
+					WorkspaceID: workspaceID, BranchID: branchID, Limit: 100, Offset: offset,
+				})
+				if err != nil {
+					return err
+				}
+				usage.UserCount = result.Total
+				for _, user := range result.Users {
+					usage.TodayTokens += user.LastDailyTokens
+					usage.TotalTokens += user.TotalTokens
+					usage.TodayImages += user.LastDailyImages
+					usage.TotalImages += user.TotalImages
+				}
+				if len(result.Users) == 0 || offset+len(result.Users) >= result.Total {
+					break
+				}
+			}
+			return utils.EncodeOutput(utils.OutputFormat.Value, ctx.Output, usage)
+		},
+	}
+	addAIGatewayWorkspaceFlags(cmd, &workspace)
+	return cmd
+}
+
+func resolveAIGatewayManagementTarget(cmd *cobra.Command, workspace *aiGatewayWorkspaceOptions) (*volcengine.Client, string, string, error) {
+	if workspace.WorkspaceID == "" {
+		if err := loadOrPromptVolcengineProjectRef(cmd.Context(), afero.NewOsFs(), "Which workspace do you want to use for AI Gateway?"); err != nil {
+			return nil, "", "", err
+		}
+		workspace.WorkspaceID = flags.ProjectRef
+	} else if err := ensureVolcengineRegion(cmd.Context(), afero.NewOsFs(), false); err != nil {
+		return nil, "", "", err
+	}
+	client, err := volcengineClientFromAuth(cmd)
+	if err != nil {
+		return nil, "", "", err
+	}
+	branchID := workspace.BranchID
+	if branchID == "" {
+		branch, err := client.ResolveDefaultBranch(cmd.Context(), workspace.WorkspaceID)
+		if err != nil {
+			return nil, "", "", err
+		}
+		branchID = branch.BranchID
+	}
+	return client, workspace.WorkspaceID, branchID, nil
 }
 
 func newAIGatewayStatusCmd(ctx RuntimeContext) *cobra.Command {

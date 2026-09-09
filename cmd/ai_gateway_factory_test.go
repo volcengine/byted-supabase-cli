@@ -28,8 +28,28 @@ func TestAIGatewayCommandGroup(t *testing.T) {
 	for _, child := range command.Commands() {
 		names[child.Name()] = true
 	}
-	for _, name := range []string{"status", "config", "api-keys", "models", "chat", "test", "init"} {
+	for _, name := range []string{"status", "config", "api-keys", "models", "quota", "usage", "chat", "test", "init"} {
 		require.True(t, names[name], "missing AI Gateway command %q", name)
+	}
+
+	quota, _, err := command.Find([]string{"quota"})
+	require.NoError(t, err)
+	quotaNames := make(map[string]bool)
+	for _, child := range quota.Commands() {
+		quotaNames[child.Name()] = true
+	}
+	for _, name := range []string{"get", "set-default", "users"} {
+		require.True(t, quotaNames[name], "missing AI Gateway quota command %q", name)
+	}
+
+	users, _, err := command.Find([]string{"quota", "users"})
+	require.NoError(t, err)
+	userNames := make(map[string]bool)
+	for _, child := range users.Commands() {
+		userNames[child.Name()] = true
+	}
+	for _, name := range []string{"list", "get", "set"} {
+		require.True(t, userNames[name], "missing AI Gateway quota users command %q", name)
 	}
 }
 

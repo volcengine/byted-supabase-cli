@@ -176,6 +176,18 @@ export VOLCENGINE_SESSION_TOKEN=<token>    # 可选：使用临时凭据时才�
 > - **修改方式**：`projects settings compute <ref> --service-type Supabase --min-cu 0.5 --max-cu 2 --suspend-timeout-seconds <秒> --yes`。⚠️ 必带 `--yes` + `--min-cu`/`--max-cu`，且 Supabase 服务 min CU 下限 0.5——这几个坑照抄即可，细节见 [tool-reference 的「💤 休眠超时」](references/tool-reference.md)。
 > - **创建后协议（非阻塞）**：`projects create` 成功后，**主动向用户解释**上面的含义并**非阻塞地**提示是否设置休眠超时，可直接用这段话：「关于空闲休眠：当前算力常驻、不会自动休眠—稳定但更耗资源。如果想节省算力，可配置空闲自动休眠时间（再次访问无需手动操作，Supabase 自动唤醒），推荐 1 小时。」**推荐 1 小时（`--suspend-timeout-seconds 3600`）**；用户没回应或表示不需要就保持默认不休眠，**不要因此卡住或阻塞**后续流程。
 
+### AI Gateway
+
+AI Gateway 提供 Workspace 分支的大模型访问、图片生成和 Token/图片额度管理能力。涉及 AI Gateway 的任务，先阅读完整指南 [`references/ai-gateway.md`](references/ai-gateway.md)，再根据需要执行：
+
+- 模型/端点查询：`ai-gateway status`、`ai-gateway models list`
+- OpenAI 兼容调用：`ai-gateway chat completions`
+- 图片生成：参考指南中的 Images API 示例
+- 额度管理：`ai-gateway quota get`、`quota set-default`、`quota users list/get/set`
+- 用量汇总：`ai-gateway usage`
+
+指南包含 Supabase Auth `access_token`、Third-Party Auth JWT、后端 `service_role_key` 的 JavaScript/Python 接入 Demo，以及额度单位、图片模型尺寸和排障说明。命令和参数以 `byted-supabase-cli ai-gateway --help` 为准。
+
 ### 分支（branch）
 
 | 需求 | 命令 |
@@ -276,6 +288,7 @@ export VOLCENGINE_SESSION_TOKEN=<token>    # 可选：使用临时凭据时才�
 | 文档 | 用途 |
 |------|------|
 | [`references/tool-reference.md`](references/tool-reference.md) | 命令速查：动作 → CLI + 等价 SQL |
+| [`references/ai-gateway.md`](references/ai-gateway.md) | AI Gateway 接入 Demo、图片生成、额度管理与排障 |
 | [`references/workflows.md`](references/workflows.md) | 常见操作流程（巡检 / 变更 / 发布） |
 | [`references/sql-playbook.md`](references/sql-playbook.md) | 常用 SQL 示例（CRUD / JOIN / pgvector / RPC） |
 | [`references/app-integration-guide.md`](references/app-integration-guide.md) | 接入 TS/Python 应用：SDK 初始化 + CRUD + Auth + Realtime |

@@ -39,6 +39,58 @@ type DescribeAPIKeysResult struct {
 	APIKeys []APIKey
 }
 
+type AIGlobalQuota struct {
+	DailyTokenLimit int64 `json:"daily_token_limit"`
+	DailyImageLimit int64 `json:"daily_image_limit"`
+}
+
+type DescribeAIUserSummariesParams struct {
+	WorkspaceID string
+	BranchID    string
+	Limit       int
+	Offset      int
+}
+
+type AIUserQuota struct {
+	UserID          string `json:"user_id"`
+	UserName        string `json:"user_name,omitempty"`
+	Email           string `json:"email,omitempty"`
+	Phone           string `json:"phone,omitempty"`
+	CreateTime      string `json:"create_time,omitempty"`
+	LastSignInTime  string `json:"last_sign_in_time,omitempty"`
+	QuotaCustomized bool   `json:"quota_customized"`
+	DailyTokenLimit int64  `json:"daily_token_limit"`
+	DailyImageLimit int64  `json:"daily_image_limit"`
+	LastDailyTokens int64  `json:"last_daily_tokens"`
+	TotalTokens     int64  `json:"total_tokens"`
+	LastDailyImages int64  `json:"last_daily_images"`
+	TotalImages     int64  `json:"total_images"`
+}
+
+type DescribeAIUserSummariesResult struct {
+	Total int
+	Users []AIUserQuota
+}
+
+type ModifyAIUserQuotaParams struct {
+	WorkspaceID     string
+	BranchID        string
+	UserID          string
+	QuotaCustomized bool
+	DailyTokenLimit *int64
+	DailyImageLimit *int64
+}
+
+type AIUsage struct {
+	WorkspaceID string `json:"workspace_id"`
+	BranchID    string `json:"branch_id"`
+	UserCount   int    `json:"user_count"`
+	TodayTokens int64  `json:"today_tokens"`
+	TotalTokens int64  `json:"total_tokens"`
+	TodayImages int64  `json:"today_images"`
+	TotalImages int64  `json:"total_images"`
+}
+
 type DescribeOperationsParams struct {
 	WorkspaceID     string
 	BranchID        string
@@ -557,6 +609,184 @@ func (c *Client) DescribeAPIKeys(ctx context.Context, params DescribeAPIKeysPara
 		})
 	}
 	return result, nil
+}
+
+func (c *Client) DescribeAIGlobalQuota(ctx context.Context, workspaceID, branchID string) (AIGlobalQuota, error) {
+	if err := ctx.Err(); err != nil {
+		return AIGlobalQuota{}, err
+	}
+	var resp describeAIGlobalQuotaResponse
+	err := c.callAIDAPUniversal("DescribeBaasAIGlobalQuota", &describeAIGlobalQuotaRequest{
+		WorkspaceID: workspaceID,
+		BranchID:    branchID,
+	}, &resp)
+	if err != nil {
+		return AIGlobalQuota{}, errors.Errorf("failed to call volcengine DescribeBaasAIGlobalQuota: %w", err)
+	}
+	var result AIGlobalQuota
+	if resp.UserDefaultQuota != nil {
+		result.DailyTokenLimit = int64Value(resp.UserDefaultQuota.DailyTokenLimit)
+		result.DailyImageLimit = int64Value(resp.UserDefaultQuota.DailyImageLimit)
+	}
+	return result, nil
+}
+
+func (c *Client) ModifyAIGlobalQuota(ctx context.Context, workspaceID, branchID string, dailyTokenLimit int64) error {
+	return c.ModifyAIGlobalQuotaWithLimits(ctx, workspaceID, branchID, &dailyTokenLimit, nil)
+}
+
+func (c *Client) ModifyAIGlobalQuotaWithLimits(ctx context.Context, workspaceID, branchID string, dailyTokenLimit, dailyImageLimit *int64) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	err := c.callAIDAPUniversal("ModifyBaasAIGlobalQuota", &modifyAIGlobalQuotaRequest{
+		WorkspaceID: workspaceID,
+		BranchID:    branchID,
+		UserDefaultQuota: &aiQuotaPayload{
+			DailyTokenLimit: dailyTokenLimit,
+			DailyImageLimit: dailyImageLimit,
+		},
+	}, &struct{}{})
+	if err != nil {
+		return errors.Errorf("failed to call volcengine ModifyBaasAIGlobalQuota: %w", err)
+	}
+	return nil
+}
+
+func (c *Client) DescribeAIUserSummaries(ctx context.Context, params DescribeAIUserSummariesParams) (DescribeAIUserSummariesResult, error) {
+	limit := params.Limit
+	if limit == 0 {
+		limit = maxWorkspaceLimit
+	}
+	if err := ctx.Err(); err != nil {
+		return DescribeAIUserSummariesResult{}, err
+	}
+	var resp describeAIUserSummariesResponse
+	err := c.callAIDAPUniversal("DescribeBaasAIUserSummaries", &describeAIUserSummariesRequest{
+		WorkspaceID: params.WorkspaceID,
+		BranchID:    params.BranchID,
+		Limit:       limit,
+		Offset:      params.Offset,
+	}, &resp)
+	if err != nil {
+		return DescribeAIUserSummariesResult{}, errors.Errorf("failed to call volcengine DescribeBaasAIUserSummaries: %w", err)
+	}
+	result := DescribeAIUserSummariesResult{Total: resp.Total}
+	for _, item := range resp.UserSummaryItems {
+		user := AIUserQuota{
+			UserID:          item.UserID,
+			UserName:        item.UserName,
+			Email:           item.Email,
+			Phone:           item.Phone,
+			CreateTime:      item.CreateTime,
+			LastSignInTime:  item.LastSignInTime,
+			QuotaCustomized: item.QuotaCustomized,
+		}
+		if item.CustomQuota != nil {
+			user.DailyTokenLimit = int64Value(item.CustomQuota.DailyTokenLimit)
+			user.DailyImageLimit = int64Value(item.CustomQuota.DailyImageLimit)
+		}
+		if item.Usage != nil {
+			user.LastDailyTokens = item.Usage.LastDailyTokens
+			user.TotalTokens = item.Usage.TotalTokens
+			user.LastDailyImages = item.Usage.LastDailyImages
+			user.TotalImages = item.Usage.TotalImages
+		}
+		result.Users = append(result.Users, user)
+	}
+	return result, nil
+}
+
+func (c *Client) ModifyAIUserQuota(ctx context.Context, params ModifyAIUserQuotaParams) error {
+	return c.ModifyAIUserQuotaWithLimits(ctx, params)
+}
+
+func (c *Client) ModifyAIUserQuotaWithLimits(ctx context.Context, params ModifyAIUserQuotaParams) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	item := aiUserQuotaPayload{
+		UserID:          params.UserID,
+		QuotaCustomized: params.QuotaCustomized,
+	}
+	if params.QuotaCustomized {
+		item.CustomQuota = &aiQuotaPayload{
+			DailyTokenLimit: params.DailyTokenLimit,
+			DailyImageLimit: params.DailyImageLimit,
+		}
+	}
+	err := c.callAIDAPUniversal("ModifyBaasAIUserQuotas", &modifyAIUserQuotasRequest{
+		WorkspaceID:    params.WorkspaceID,
+		BranchID:       params.BranchID,
+		UserQuotaItems: []aiUserQuotaPayload{item},
+	}, &struct{}{})
+	if err != nil {
+		return errors.Errorf("failed to call volcengine ModifyBaasAIUserQuotas: %w", err)
+	}
+	return nil
+}
+
+type describeAIGlobalQuotaRequest struct {
+	WorkspaceID string `json:"WorkspaceId"`
+	BranchID    string `json:"BranchId"`
+}
+
+type aiQuotaPayload struct {
+	DailyTokenLimit *int64 `json:"DailyTokenLimit,omitempty"`
+	DailyImageLimit *int64 `json:"DailyImageLimit,omitempty"`
+}
+
+type describeAIGlobalQuotaResponse struct {
+	UserDefaultQuota *aiQuotaPayload `json:"UserDefaultQuota"`
+}
+
+type modifyAIGlobalQuotaRequest struct {
+	WorkspaceID      string          `json:"WorkspaceId"`
+	BranchID         string          `json:"BranchId"`
+	UserDefaultQuota *aiQuotaPayload `json:"UserDefaultQuota"`
+}
+
+type describeAIUserSummariesRequest struct {
+	WorkspaceID string `json:"WorkspaceId"`
+	BranchID    string `json:"BranchId"`
+	Limit       int    `json:"Limit"`
+	Offset      int    `json:"Offset"`
+}
+
+type aiUserUsagePayload struct {
+	LastDailyTokens int64 `json:"LastDailyTokens"`
+	TotalTokens     int64 `json:"TotalTokens"`
+	LastDailyImages int64 `json:"LastDailyImages"`
+	TotalImages     int64 `json:"TotalImages"`
+}
+
+type aiUserSummaryPayload struct {
+	CreateTime      string              `json:"CreateTime"`
+	CustomQuota     *aiQuotaPayload     `json:"CustomQuota"`
+	Email           string              `json:"Email"`
+	LastSignInTime  string              `json:"LastSignInTime"`
+	Phone           string              `json:"Phone"`
+	QuotaCustomized bool                `json:"QuotaCustomized"`
+	Usage           *aiUserUsagePayload `json:"Usage"`
+	UserID          string              `json:"UserId"`
+	UserName        string              `json:"UserName"`
+}
+
+type describeAIUserSummariesResponse struct {
+	Total            int                    `json:"Total"`
+	UserSummaryItems []aiUserSummaryPayload `json:"UserSummaryItems"`
+}
+
+type aiUserQuotaPayload struct {
+	CustomQuota     *aiQuotaPayload `json:"CustomQuota,omitempty"`
+	QuotaCustomized bool            `json:"QuotaCustomized"`
+	UserID          string          `json:"UserId"`
+}
+
+type modifyAIUserQuotasRequest struct {
+	WorkspaceID    string               `json:"WorkspaceId"`
+	BranchID       string               `json:"BranchId"`
+	UserQuotaItems []aiUserQuotaPayload `json:"UserQuotaItems"`
 }
 
 type describeAPIKeysRequest struct {
