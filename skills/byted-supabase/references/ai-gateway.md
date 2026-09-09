@@ -25,15 +25,20 @@ SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
 
 ## 模型使用
 
-### 控制台入口
+### CLI 入口
 
-在控制台中查看模型、在线测试和调用示例：
+使用 CLI 查询目标 Workspace 分支的 AI Gateway 状态和模型：
 
-1. 登录 [AI 原生数据库管理平台](https://console.volcengine.com/aidap)。
-2. 选择目标项目和地域。
-3. 进入目标 Workspace 的**分支管理**页面。
-4. 单击目标分支，进入**分支总览**。
-5. 选择**访问大模型 > 模型使用**。
+```bash
+byted-supabase-cli ai-gateway status \
+  --workspace-id <workspace-id> \
+  --branch-id <branch-id>
+
+byted-supabase-cli ai-gateway models list \
+  --workspace-id <workspace-id> \
+  --branch-id <branch-id> \
+  -o json
+```
 
 ### 查看可用模型
 
@@ -50,7 +55,7 @@ SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
 | `bytedance/doubao-seedream-5.0-pro` | 图片 | 高质量图片生成 |
 | `bytedance/doubao-seedream-5.0-lite` | 图片 | 轻量图片生成 |
 
-实际可用模型可能随平台更新变化，应以控制台页面或以下命令的实时结果为准：
+实际可用模型可能随平台更新变化，应以下面命令的实时结果为准：
 
 ```bash
 byted-supabase-cli ai-gateway models list \
@@ -61,16 +66,30 @@ byted-supabase-cli ai-gateway models list \
 
 已停止服务的模型不要继续使用。模型迁移时，优先根据当前列表选择替代模型；例如旧版 `doubao-seed-2.0-pro`、`doubao-seed-2.0-code` 已停止服务时，应分别迁移到平台当前提供的 `doubao-seed-2.1-pro`、`doubao-seed-2.1-turbo` 或其他适合模型。
 
-### 在线测试模型
+### CLI 测试模型
 
-在**模型使用**页面选择模型后，右侧会显示交互式测试面板：
+使用 `test` 做最小连通性测试，使用 `chat completions` 传入自定义提示词：
 
-1. 输入提示词，例如“什么是大模型？”。
-2. 单击发送，查看实时响应。
-3. 对视频或图片模型，根据面板提示设置尺寸、比例、时长等多模态参数。
-4. 确认模型效果和参数后，再复制页面下方的 OpenAI、cURL 或 Vercel AI 调用示例。
+```bash
+export AI_GATEWAY_TOKEN='<access-token-or-service-role-key>'
 
-控制台会话记录不会在离开页面后保留；历史生成的视频产物会写入对应分支的 Storage：
+byted-supabase-cli ai-gateway test \
+  --workspace-id <workspace-id> \
+  --branch-id <branch-id> \
+  --token-env AI_GATEWAY_TOKEN
+
+byted-supabase-cli ai-gateway chat completions \
+  --workspace-id <workspace-id> \
+  --branch-id <branch-id> \
+  --model bytedance/doubao-seed-2.1-pro \
+  --message '什么是大模型？' \
+  --stream \
+  --token-env AI_GATEWAY_TOKEN
+```
+
+图片模型使用 Images API；视频和图片模型所需的尺寸、比例、时长等参数，以模型接口实际返回的参数校验结果为准。CLI 目前提供图片生成的 OpenAI 兼容 cURL 示例，见[图片生成](#图片生成)。
+
+历史生成的视频产物会写入对应分支的 Storage：
 
 ```text
 Bucket: _supabase_internal_ai_gateway_output
@@ -88,15 +107,6 @@ Frame:  video/<tenant>/<user>/<task_id>/last_frame.<ext>
 
 通用流程是：获取当前用户 Session 的 `access_token`，将其作为 Bearer Token，使用 `<SUPABASE_URL>/v1` 作为 API Base URL，再传入模型 ID。完整的 JavaScript、Python、Vercel AI SDK 和 cURL 示例见本文的[应用接入](#应用接入)。
 
-### AI Gateway 审计日志
-
-需要排查调用失败、请求耗时或模型调用记录时：
-
-1. 登录 Supabase 控制台。
-2. 进入 **Logs > Logs & Analytics**。
-3. 选择 **Collection > AI Gateway**。
-
-可按关键词、时间范围、Severity 和 Module 筛选，也可以打开 Chart 查看趋势或下载日志。日志详情包含 `id`、`timestamp`、`event_message` 和 `metadata`；需要精确排查时查看 Raw JSON。
 
 ## 应用接入
 
@@ -301,19 +311,27 @@ curl "$SUPABASE_URL/v1/images/generations" \
 
 ## 限额管理
 
-### 控制台入口
+### CLI 入口
 
-在控制台中配置全局默认限额和用户自定义限额：
+使用以下命令查询和配置 Workspace 分支的全局默认额度及用户自定义额度：
 
-1. 登录 [AI 原生数据库管理平台](https://console.volcengine.com/aidap)。
-2. 选择目标项目和地域。
-3. 进入目标 Workspace 的**分支管理**页面。
-4. 单击目标分支，进入**分支总览**。
-5. 选择**访问大模型 > 限额管理**。
+```bash
+byted-supabase-cli ai-gateway quota get \
+  --workspace-id <workspace-id> \
+  --branch-id <branch-id> \
+  -o json
+
+byted-supabase-cli ai-gateway quota users list \
+  --workspace-id <workspace-id> \
+  --branch-id <branch-id> \
+  --limit 10 \
+  --offset 0 \
+  -o json
+```
 
 ### 全局默认限额
 
-页面顶部展示当前 Workspace 分支的全局默认限额。新创建 Workspace 的默认值通常为：
+`quota get` 返回当前 Workspace 分支的全局默认限额。新创建 Workspace 的默认值通常为：
 
 - 每个用户每日 Token 限额：`0`
 - 每个用户每日图片生成限额：`0`
@@ -324,11 +342,11 @@ curl "$SUPABASE_URL/v1/images/generations" \
 {"error":{"message":"no quota configured for user","type":"quota_exceeded"}}
 ```
 
-单击编辑，可以分别将 Token 和图片额度设置为**指定额度**或**不限量**。修改后，所有未设置自定义额度的用户都会使用新的全局默认值。
+使用 `quota set-default`，可以分别将 Token 和图片额度设置为指定额度或不限量。修改后，所有未设置自定义额度的用户都会使用新的全局默认值。
 
 ### 单用户限额
 
-用户列表可以查看：
+`quota users list` 返回：
 
 | 字段 | 说明 |
 | --- | --- |
@@ -340,7 +358,7 @@ curl "$SUPABASE_URL/v1/images/generations" \
 | 每日限额 | 用户使用默认额度或自定义额度 |
 | 加入时间 | 用户首次使用 AI Gateway 的时间 |
 
-可以按用户名、邮箱或手机号搜索用户，再单独编辑 Token 或图片生成额度。设置自定义额度后，该用户不再跟随全局默认额度。
+当前 CLI 支持按分页读取用户列表，并使用 `quota users get --user-id` 查询单个用户；再通过 `quota users set` 设置 Token 或图片生成额度。设置自定义额度后，该用户不再跟随全局默认额度。当前 CLI 未提供按用户名、邮箱或手机号筛选参数。
 
 ### CLI 操作
 
@@ -374,24 +392,18 @@ byted-supabase-cli ai-gateway usage \
   --workspace-id <workspace-id> --branch-id <branch-id> -o json
 ```
 
-额度接口使用 AIDAP `2025-10-01` action：
-
-- `DescribeBaasAIGlobalQuota` / `ModifyBaasAIGlobalQuota`
-- `DescribeBaasAIUserSummaries` / `ModifyBaasAIUserQuotas`
 
 参数说明：
 
-- `--token-limit` 是原始 Token 数量/天；控制台中文界面的“万/天”需要换算，例如 `100000` 表示 10 万 Token/天。
+- `--token-limit` 是原始 Token 数量/天，例如 `100000` 表示 10 万 Token/天。
 - `--image-limit` 是图片张数/天，例如 `20` 表示每天最多生成 20 张图片。
 - 对应参数传 `-1` 表示不限量；`set-default` 和 `quota users set` 至少传入一个额度参数，未传入的另一项不会被修改。
 - 新 Workspace 默认额度通常为 `0`，出现 `no quota configured for user` 或 `quota_exceeded` 时，先配置全局或用户额度。
 - 用户列表包含 Token 和图片的今日/历史用量；`usage` 会分页汇总当前分支数据。平台后置计量可能导致实际消耗略高于配置额度。
 
-当前 CLI 使用 SDK `github.com/volcengine/volcengine-go-sdk v1.2.51`。由于 SDK 生成结构暂未包含图片字段，图片额度使用同一 AIDAP action 的兼容 JSON 映射，以匹配控制台实际请求。
 
 ## 排障
 
 - `no quota configured for user` / `quota_exceeded`：执行 `quota get`，再用 `quota set-default` 或 `quota users set` 配置额度。
 - 认证错误：确认 Token 属于当前 Workspace，并确认 URL 是 `<SUPABASE_URL>/v1`。
 - 模型不存在：执行 `ai-gateway models list`，使用实际返回的模型 ID。
-- 浏览器使用 OpenAI SDK：需要 `dangerouslyAllowBrowser: true`；生产环境绝不能暴露 `service_role_key`。

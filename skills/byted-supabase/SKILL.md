@@ -178,7 +178,7 @@ export VOLCENGINE_SESSION_TOKEN=<token>    # 可选：使用临时凭据时才�
 
 ### AI Gateway
 
-AI Gateway 提供 Workspace 分支的大模型访问、图片生成和 Token/图片额度管理能力。涉及 AI Gateway 的任务，先阅读完整指南 [`references/ai-gateway.md`](references/ai-gateway.md)，再根据需要执行：
+AI Gateway 提供 Workspace 分支的大模型访问、图片生成、Seedance 视频生成的能力。涉及 AI Gateway 的任务，先阅读完整指南 [`references/ai-gateway.md`](references/ai-gateway.md)，再根据需要执行：
 
 - 模型/端点查询：`ai-gateway status`、`ai-gateway models list`
 - OpenAI 兼容调用：`ai-gateway chat completions`
