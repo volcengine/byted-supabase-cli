@@ -42,16 +42,29 @@ type PrefixGroup struct {
 func Run(ctx context.Context, paths []string, recursive bool, fsys afero.Fs) error {
 	return run(ctx, func() (storage.StorageAPI, error) {
 		return client.NewStorageAPI(ctx, flags.ProjectRef)
-	}, paths, recursive, fsys)
+	}, paths, recursive, fsys, false)
+}
+
+func RunWithAPI(ctx context.Context, api storage.StorageAPI, paths []string, recursive bool, fsys afero.Fs) error {
+	return RunWithAPIConfirm(ctx, api, paths, recursive, fsys, false)
+}
+
+func RunWithAPIConfirm(ctx context.Context, api storage.StorageAPI, paths []string, recursive bool, fsys afero.Fs, skipConfirmation bool) error {
+	if api.Fetcher == nil {
+		return errors.New("storage API is not initialized")
+	}
+	return run(ctx, func() (storage.StorageAPI, error) {
+		return api, nil
+	}, paths, recursive, fsys, skipConfirmation)
 }
 
 func RunVolcengine(ctx context.Context, api *volcengine.Client, workspaceID, branchID string, paths []string, recursive bool, fsys afero.Fs) error {
 	return run(ctx, func() (storage.StorageAPI, error) {
 		return client.NewVolcengineStorageAPI(ctx, api, workspaceID, branchID)
-	}, paths, recursive, fsys)
+	}, paths, recursive, fsys, false)
 }
 
-func run(ctx context.Context, newAPI func() (storage.StorageAPI, error), paths []string, recursive bool, fsys afero.Fs) error {
+func run(ctx context.Context, newAPI func() (storage.StorageAPI, error), paths []string, recursive bool, fsys afero.Fs, skipConfirmation bool) error {
 	// Group paths by buckets
 	groups := map[string][]string{}
 	for _, objectPath := range paths {
@@ -88,10 +101,12 @@ func run(ctx context.Context, newAPI func() (storage.StorageAPI, error), paths [
 	console := utils.NewConsole()
 	for bucket, prefixes := range groups {
 		confirm := fmt.Sprintf("Confirm deleting files in bucket %v?", utils.Bold(bucket))
-		if shouldDelete, err := console.PromptYesNo(ctx, confirm, false); err != nil {
-			return err
-		} else if !shouldDelete {
-			continue
+		if !skipConfirmation {
+			if shouldDelete, err := console.PromptYesNo(ctx, confirm, false); err != nil {
+				return err
+			} else if !shouldDelete {
+				continue
+			}
 		}
 		// Always try deleting first in case the paths resolve to extensionless files
 		fmt.Fprintln(os.Stderr, "Deleting objects:", prefixes)

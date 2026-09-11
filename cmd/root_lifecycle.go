@@ -24,6 +24,7 @@ func rootPersistentPreRunE(cmd *cobra.Command, args []string) error {
 	cmd.SilenceUsage = true
 	ctx, _ := signal.NotifyContext(cmd.Context(), os.Interrupt)
 	fsys := afero.NewOsFs()
+	syncYesFlag(cmd)
 	profileChanged := cmd.Root().PersistentFlags().Lookup("profile") != nil &&
 		cmd.Root().PersistentFlags().Lookup("profile").Changed
 	runtimecli.ApplyRegion(profileChanged, rootProfile, volcRegion, volcengine.SetProfileOverride, volcengine.SetRegionOverride)
@@ -84,6 +85,16 @@ func rootPersistentPreRunE(cmd *cobra.Command, args []string) error {
 	}
 	sentryOpts.Environment = apiHost.Host
 	return sentry.Init(sentryOpts)
+}
+
+func syncYesFlag(cmd *cobra.Command) {
+	yesFlag := cmd.Flags().Lookup("yes")
+	if yesFlag == nil {
+		yesFlag = cmd.Root().PersistentFlags().Lookup("yes")
+	}
+	if yesFlag != nil && yesFlag.Changed {
+		viper.Set("YES", yesFlag.Value.String() == "true")
+	}
 }
 
 func authInteractive() bool {

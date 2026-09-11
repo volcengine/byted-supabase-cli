@@ -53,6 +53,10 @@ type indexConfig struct {
 }
 
 func Run(ctx context.Context, slug, runtime string, fsys afero.Fs) error {
+	return RunWithOptions(ctx, slug, runtime, fsys, true)
+}
+
+func RunWithOptions(ctx context.Context, slug, runtime string, fsys afero.Fs, interactive bool) error {
 	// 1. Sanity checks.
 	if err := utils.ValidateFunctionSlug(slug); err != nil {
 		return err
@@ -85,7 +89,7 @@ func Run(ctx context.Context, slug, runtime string, fsys afero.Fs) error {
 	}
 	fmt.Println("Created new Function at " + utils.Bold(funcDir))
 
-	if isFirstFunction {
+	if isFirstFunction && interactive {
 		if err := _init.PromptForIDESettings(ctx, fsys); err != nil {
 			return err
 		}

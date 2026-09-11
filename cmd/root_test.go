@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/volcengine/byted-supabase-cli/internal/telemetry"
@@ -59,6 +60,19 @@ func TestCommandAnalyticsContext(t *testing.T) {
 	}, ctx.Flags)
 	assert.NotContains(t, ctx.Flags, "linked")
 	assert.NotEmpty(t, ctx.RunID)
+}
+
+func TestSyncYesFlag(t *testing.T) {
+	t.Cleanup(viper.Reset)
+
+	root := &cobra.Command{Use: "byted-supabase-cli"}
+	root.PersistentFlags().Bool("yes", false, "")
+	syncYesFlag(root)
+	assert.False(t, viper.GetBool("YES"))
+
+	require.NoError(t, root.PersistentFlags().Set("yes", "true"))
+	syncYesFlag(root)
+	assert.True(t, viper.GetBool("YES"))
 }
 
 func TestCommandName(t *testing.T) {

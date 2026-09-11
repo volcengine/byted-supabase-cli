@@ -282,15 +282,17 @@ func newProjectsOverviewCommand(ctx RuntimeContext) *cobra.Command {
 func newProjectsAPIKeysCommand(ctx RuntimeContext) *cobra.Command {
 	var options projectsFactoryOptions
 	var projectName, branchID string
+	var reveal bool
 	cmd := &cobra.Command{Use: "api-keys", Short: "List API keys for the default or specified branch", RunE: func(cmd *cobra.Command, args []string) error {
 		if err := resolveProjectsWorkspace(cmd, &options, "Which project do you want to list API keys for?"); err != nil {
 			return err
 		}
-		return apiKeys.RunVolcengine(cmd.Context(), apiKeys.RunVolcengineParams{ProjectName: projectName, WorkspaceID: options.WorkspaceID, BranchID: branchID, Fsys: afero.NewOsFs()})
+		return apiKeys.RunVolcengine(cmd.Context(), apiKeys.RunVolcengineParams{ProjectName: projectName, WorkspaceID: options.WorkspaceID, BranchID: branchID, Fsys: afero.NewOsFs(), Reveal: reveal})
 	}}
 	newProjectsWorkspaceFlags(cmd, &options)
 	cmd.Flags().StringVar(&projectName, "project-name", "", "Volcengine ProjectName sent to the AI Gateway API.")
 	cmd.Flags().StringVar(&branchID, "branch-id", "", "Branch ID of the Volcengine Supabase workspace.")
+	cmd.Flags().BoolVar(&reveal, "reveal", false, "Reveal API key values. Treat the output as sensitive.")
 	_ = ctx
 	return cmd
 }

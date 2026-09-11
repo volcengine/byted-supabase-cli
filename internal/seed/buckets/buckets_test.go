@@ -75,3 +75,9 @@ public = false`
 		assert.Empty(t, apitest.ListUnmatchedRequests())
 	})
 }
+
+func TestRunWithAPIRejectsUninitializedAPI(t *testing.T) {
+	err := RunWithAPI(context.Background(), storage.StorageAPI{}, false, afero.NewMemMapFs())
+
+	require.ErrorContains(t, err, "storage API is not initialized")
+}

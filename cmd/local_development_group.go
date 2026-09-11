@@ -3,7 +3,7 @@
 
 package cmd
 
-func localDevelopmentCommandGroup() CommandGroup {
+func localDevelopmentCommandGroup(linkFactory CommandFactory) CommandGroup {
 	return CommandGroup{
 		Group: nil,
 		Factories: []CommandFactory{
@@ -12,7 +12,7 @@ func localDevelopmentCommandGroup() CommandGroup {
 			newInitCommand,
 			newLoginCommand,
 			newLogoutCommand,
-			newLinkCommand,
+			linkFactory,
 			newMCPCommand,
 			newInspectCommand,
 			newDBCommand,

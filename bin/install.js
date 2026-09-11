@@ -50,7 +50,8 @@ function globalBinaryPath() {
 }
 
 function main() {
-  const force = process.argv.slice(2).includes("--force");
+  const installArgs = process.argv.slice(2);
+  const force = installArgs.includes("--force");
 
   console.error(`Installing ${PKG} globally ...`);
   try {
@@ -87,6 +88,7 @@ function main() {
   try {
     const args = ["skills", "install"];
     if (force) args.push("--force");
+    if (installArgs.includes("--dev")) args.push("--dev");
     run(binary, args);
   } catch (err) {
     console.error(`\nCLI installed, but skill installation failed: ${err.message}`);

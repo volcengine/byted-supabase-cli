@@ -3,11 +3,13 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/go-errors/errors"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
+	linkstate "github.com/volcengine/byted-supabase-cli/internal/link"
 	"github.com/volcengine/byted-supabase-cli/internal/utils"
 	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 )
@@ -142,6 +144,13 @@ func authPolicyAnnotation(cmd *cobra.Command) (AuthPolicy, bool) {
 }
 
 func resolveAuthPolicy(cmd *cobra.Command, args []string) (AuthPolicy, error) {
+	if cmd != nil && cmd.Name() == "link" && cmd.Flags().Lookup("supabase-url") != nil &&
+		cmd.Flags().Lookup("supabase-url").Changed {
+		return AuthPolicyNone, nil
+	}
+	if linkstate.IsSoloAtDir(runtimeWorkdirFromArgs()) {
+		return AuthPolicyNone, nil
+	}
 	if isDirectDatabaseCommand(cmd) {
 		return AuthPolicyNone, nil
 	}
@@ -228,12 +237,20 @@ func (s VolcengineAuthStrategy) Authenticate(ctx context.Context, request AuthRe
 	}, nil
 }
 
+// printVolcengineLoginHint explains both ways of linking a project before the
+// browser-based Console Login takes over the terminal.
+func printVolcengineLoginHint(output io.Writer) {
+	fmt.Fprintln(output, volcengine.MissingCredentialsHint())
+	fmt.Fprintln(output)
+	fmt.Fprintln(output, "Starting Console Login in your browser now, which is what `byted-supabase-cli login` does.")
+	fmt.Fprintln(output, "Press Ctrl+C to cancel.")
+	fmt.Fprintf(output, "No region was provided; using default region %q. Change it later with\n", volcengine.DefaultConsoleLoginRegion)
+	fmt.Fprintln(output, "`byted-supabase-cli configure region <region>`.")
+	fmt.Fprintln(output)
+}
+
 func promptVolcengineLogin(ctx context.Context) error {
-	fmt.Fprintln(os.Stderr, "No Volcengine profile found.")
-	fmt.Fprintf(os.Stderr, "You can configure AK/SK with `%s`, or set %s and %s.\n", "byted-supabase-cli configure set --access-key <key> --secret-key <key> --region <region>", volcengine.EnvAccessKeyID, volcengine.EnvSecretAccessKey)
-	fmt.Fprintln(os.Stderr, "Alternatively, open the following URL to complete Console Login.")
-	fmt.Fprintf(os.Stderr, "No region was provided; using default region %q. You can change it later with `%s`.\n", volcengine.DefaultConsoleLoginRegion, "byted-supabase-cli configure region <region>")
-	fmt.Fprintln(os.Stderr, "Press Ctrl+C to cancel.")
+	printVolcengineLoginHint(os.Stderr)
 	return volcengine.RunConsoleLogin(ctx, volcengine.ConsoleLoginParams{
 		Profile: "default",
 		Region:  volcengine.DefaultConsoleLoginRegion,

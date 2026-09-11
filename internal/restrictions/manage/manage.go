@@ -26,7 +26,10 @@ func Get(ctx context.Context, workspaceID string) error {
 	return runWorkspaceAction(ctx, workspaceID, func(client *volcengine.Client, workspace volcengine.Workspace) error {
 		result, err := client.DescribeAccessControlList(ctx, workspace.WorkspaceID, defaultACLName)
 		if err != nil {
-			return err
+			if !isMissingDefaultACL(err) {
+				return err
+			}
+			result = volcengine.DescribeAccessControlListResult{}
 		}
 		switch utils.OutputFormat.Value {
 		case utils.OutputPretty:
@@ -42,6 +45,11 @@ func Get(ctx context.Context, workspaceID string) error {
 		}
 		return utils.EncodeOutput(utils.OutputFormat.Value, os.Stdout, result)
 	})
+}
+
+func isMissingDefaultACL(err error) bool {
+	details := volcengine.VolcengineErrorDetailsFromErr(err)
+	return details.ErrorCode == "AccessControlListNameNotFound"
 }
 
 func Create(ctx context.Context, params Params) error {

@@ -31,6 +31,8 @@ metadata:
 - 直接调用 **`byted-supabase-cli`** 命令行工具获取实时结果
 - 基于返回结果做解释、排障和下一步建议
 
+
+
 ## 核心原则
 
 > 本节为通用工作纪律，**任何 Supabase 任务都应遵守**。
@@ -105,7 +107,9 @@ byted-supabase-cli <command> --help  # 任何子命令都可加 --help 看参数
 
 ## 鉴权与前置条件
 
-`byted-supabase-cli` 用**火山引擎凭据**鉴权。**优先使用 CLI 自带的配置 / 登录方式**（写入 `~/.volcengine/config.json`，一次配置长期复用）：
+鉴权方式取决于运行模式：
+
+- **火山账号方式**使用火山引擎凭据。**优先使用 CLI 自带的配置 / 登录方式**（写入 `~/.volcengine/config.json`，一次配置长期复用）：
 
 **方式 1 · CLI 配置 / 登录（推荐）**
 
@@ -146,10 +150,11 @@ export VOLCENGINE_SESSION_TOKEN=<token>    # 可选：使用临时凭据时才�
 
 ## 标准使用流程
 
-1. 先确认目标资源：`workspace_id`（必要时 `branch_id`）
-2. 优先执行**只读查询**，确认现状（`projects list`、`db query "select ..."` 等）
-3. 需要变更时再执行写操作；破坏性操作（删除/停机）在非交互环境需加 `--yes`，**执行前向用户确认**。⛔ 尤其 `projects stop`（暂停 workspace）属高危红线——客户业务会彻底停服且无法靠 IO 自动唤醒，务必先二次确认（见[核心原则 5](#核心原则)）
-4. 变更后**再次查询**确认结果已生效（对应[核心原则 2](#核心原则)）
+1. 先执行 `byted-supabase-cli link status -o json`，读 `type` 字段确认当前是火山账号方式（`management`）还是分支 URL + Key 方式（`solo`）。
+2. **Workspace 模式**：确认 `workspace_id`（必要时 `branch_id`），优先执行只读查询（如 `projects list`、`db query "select ..."`）。
+3. **分支 URL + Key 方式**：确认已 link 的 Supabase URL；根据操作需要确认 anon key、service-role key 或 database URL 是否已配置，优先执行只读查询（如 `storage buckets list`、`functions list`、`auth config get`）。
+4. 需要变更时再执行写操作；破坏性操作（删除/停机）在非交互环境需加 `--yes`，**执行前向用户确认**。⛔ 尤其 Workspace 模式的 `projects stop`（暂停 workspace）属高危红线——客户业务会彻底停服且无法靠 IO 自动唤醒，务必先二次确认（见[核心原则 5](#核心原则)）。
+5. 变更后**再次查询**确认结果已生效（对应[核心原则 2](#核心原则)）。
 
 ## 能力范围（动作 → CLI 命令）
 

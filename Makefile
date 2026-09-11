@@ -32,10 +32,11 @@ SKILL_NAME ?= byted-supabase
 NAMESPACE ?=
 BYTEDCLI ?= bytedcli
 SKILL_KEEP := SKILL.md references scripts assets
+SKILL_ZIP_NAMES ?= byted-supabase-dev byted-supabase
 
 .DEFAULT_GOAL := help
 
-.PHONY: help npm-release npm-release-dry build-cli e2e-live skill-sync
+.PHONY: help npm-release npm-release-dry build-cli e2e-live skill-sync skill-zip
 
 # Self-documenting help: lists every target with a `## comment` on its rule line.
 help:
@@ -48,7 +49,7 @@ help:
 # Build the CLI for the host platform into $(DIST)/. Version is injected the same
 # way goreleaser stamps it (-X internal/utils.Version), so `byted-supabase-cli
 # --version` reports the git tag instead of an empty string.
-build-cli: ## Build the CLI into ./dist for the host platform
+build: ## Build the CLI into ./dist for the host platform
 	CGO_ENABLED=0 go build -trimpath \
 	  -ldflags "-s -w -X github.com/volcengine/byted-supabase-cli/internal/utils.Version=$(VERSION)" \
 	  -o $(DIST)/$(BINARY) main.go
@@ -92,3 +93,20 @@ skill-sync: ## Publish the skill to AgentBuddy
 			--namespace "$(NAMESPACE)" \
 			--name "$(SKILL_NAME)"
 	@echo "✅ skill 已同步到 AgentBuddy"
+
+# Package the checked-in skills as standalone zip archives. Each archive keeps
+# the skill directory as its top-level directory so it can be extracted into
+# a skills directory without losing the skill name.
+skill-zip: ## Package byted-supabase skills as zip archives in ./dist
+	@command -v zip >/dev/null 2>&1 || { echo "❌ 未找到 zip 命令"; exit 1; }
+	@mkdir -p "$(DIST)"
+	@set -eu; \
+	for skill in $(SKILL_ZIP_NAMES); do \
+		dir="$(SKILLS_DIR)/$$skill"; \
+		test -d "$$dir" || { echo "❌ skill 不存在: $$dir"; exit 1; }; \
+		test -f "$$dir/SKILL.md" || { echo "❌ skill 缺少 SKILL.md: $$dir/SKILL.md"; exit 1; }; \
+		archive="$(DIST)/$$skill.zip"; \
+		rm -f "$$archive"; \
+		(cd "$(SKILLS_DIR)" && zip -qr "../$$archive" "$$skill" -x "$$skill/.DS_Store" "$$skill/**/.DS_Store"); \
+		echo "✅ 已生成 $$archive"; \
+	done

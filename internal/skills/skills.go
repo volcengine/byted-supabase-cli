@@ -23,11 +23,13 @@ import (
 
 const (
 	// defaultSource is the `skills add` source collection that contains the
-	// byted-supabase skill. defaultName selects that one skill out of the
-	// collection (`-s byted-supabase`). defaultInstaller is the public `skills`
+	// Supabase skill. defaultName selects that one skill out of the
+	// collection (`-s byted-supabase`). Use an explicit name override for
+	// specialized skills such as byted-supabase-dev. defaultInstaller is the public `skills`
 	// npm package run through npx. defaultRegistry is empty: the public tool
 	// resolves from whatever registry the user's npm is configured with.
 	defaultSource    = "https://skills.volces.com/skills/bytedance/agentkit-samples"
+	devSource        = "https://lf3-static.bytednsdoc.com/obj/eden-cn/vpeh7hunuvn/byted-supabase-dev.zip"
 	defaultName      = "byted-supabase"
 	defaultInstaller = "skills"
 	defaultRegistry  = ""
@@ -48,6 +50,9 @@ func Source() string {
 	}
 	return defaultSource
 }
+
+// DevSource returns the ZIP source for the development skill.
+func DevSource() string { return devSource }
 
 // Name returns the skill name to install (`-s <name>`).
 func Name() string {
@@ -96,6 +101,8 @@ type Runner interface {
 type SyncOptions struct {
 	Version string           // CLI version to stamp into state; "" is treated as dev (still installs)
 	Force   bool             // pass --force to reinstall even if the skill is current
+	Name    string           // skill name override; empty uses Name()
+	Source  string           // skill source override; empty uses Source()
 	Runner  Runner           // nil → default npx runner
 	Now     func() time.Time // nil → time.Now
 }
@@ -119,13 +126,20 @@ func Sync(ctx context.Context, opts SyncOptions) *SyncResult {
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
-	name := Name()
+	name := opts.Name
+	if name == "" {
+		name = Name()
+	}
+	source := opts.Source
+	if source == "" {
+		source = Source()
+	}
 	res := &SyncResult{Skill: name, Version: opts.Version}
 
 	cmd := opts.Runner.Install(ctx, InstallSpec{
 		Installer: Installer(),
 		Registry:  Registry(),
-		Source:    Source(),
+		Source:    source,
 		Name:      name,
 	}, opts.Force)
 	if cmd == nil || cmd.Err != nil {
@@ -142,7 +156,7 @@ func Sync(ctx context.Context, opts SyncOptions) *SyncResult {
 	res.Action = "synced"
 	state := State{
 		Skill:     name,
-		Source:    Source(),
+		Source:    source,
 		Version:   opts.Version,
 		UpdatedAt: opts.Now().UTC().Format(time.RFC3339),
 	}
@@ -158,8 +172,17 @@ func Sync(ctx context.Context, opts SyncOptions) *SyncResult {
 // IsSynced reports whether the recorded skill version matches version (both
 // normalized). Used by the update path to avoid re-running npx every time.
 func IsSynced(version string) bool {
+	return IsSkillSynced(Name(), version)
+}
+
+// IsSkillSynced reports whether the recorded skill and version match.
+func IsSkillSynced(name, version string) bool {
 	recorded, ok := ReadSyncedVersion()
 	if !ok {
+		return false
+	}
+	state, stateOK, err := ReadState()
+	if err != nil || !stateOK || state.Skill != "" && state.Skill != name {
 		return false
 	}
 	return normalizeVersion(recorded) == normalizeVersion(version)

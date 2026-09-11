@@ -35,13 +35,11 @@ import (
 )
 
 func init() {
-	rootCmd = bootstrap.BuildRootCommand(bootstrap.Options{
-		NewRoot:   newRootCommand,
-		Configure: configureRootCommand,
-		Assemble: func(root *cobra.Command) {
-			assembleRootCommand(root, commandtree.DefaultRuntimeContext())
-		},
-	})
+	var err error
+	rootCmd, err = buildRootCommand()
+	if err != nil {
+		rootCmd = buildRuntimeErrorRoot(commandtree.DefaultRuntimeContext(), err)
+	}
 	bootstrap.AttachLifecycle(rootCmd, func(_ context.Context, cmd *cobra.Command, args []string) error {
 		return runtime.RunPreflight(rootPersistentPreRunE, cmd, args)
 	})
@@ -64,11 +62,7 @@ func promptLogin(ctx context.Context, cmd *cobra.Command, fsys afero.Fs) error {
 			if detectErr != nil || !shouldLogin {
 				return err
 			}
-			fmt.Fprintln(os.Stderr, "No Volcengine profile found.")
-			fmt.Fprintf(os.Stderr, "You can configure AK/SK with `%s`, or set %s and %s.\n", "byted-supabase-cli configure set --access-key <key> --secret-key <secret> --region <region>", volcengine.EnvAccessKeyID, volcengine.EnvSecretAccessKey)
-			fmt.Fprintln(os.Stderr, "Alternatively, open the following URL to complete Console Login.")
-			fmt.Fprintf(os.Stderr, "No region was provided; using default region %q. You can change it later with `%s`.\n", volcengine.DefaultConsoleLoginRegion, "byted-supabase-cli configure region <region>")
-			fmt.Fprintln(os.Stderr, "Press Ctrl+C to cancel.")
+			printVolcengineLoginHint(os.Stderr)
 			if loginErr := volcengine.RunConsoleLogin(ctx, volcengine.ConsoleLoginParams{
 				Profile: "default",
 				Region:  volcengine.DefaultConsoleLoginRegion,

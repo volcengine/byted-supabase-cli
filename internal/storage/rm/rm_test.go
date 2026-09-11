@@ -201,6 +201,18 @@ func TestStorageRM(t *testing.T) {
 	})
 }
 
+func TestRunWithAPIRejectsUninitializedAPI(t *testing.T) {
+	err := RunWithAPI(
+		context.Background(),
+		storage.StorageAPI{},
+		[]string{"ss:///private/readme.md"},
+		false,
+		afero.NewMemMapFs(),
+	)
+
+	assert.ErrorContains(t, err, "storage API is not initialized")
+}
+
 func TestRemoveAll(t *testing.T) {
 	t.Run("removes objects by prefix", func(t *testing.T) {
 		// Setup mock api

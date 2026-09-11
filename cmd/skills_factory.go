@@ -19,6 +19,7 @@ import (
 type skillsOptions struct {
 	Force bool
 	JSON  bool
+	Dev   bool
 }
 
 func skillsCommandGroup() CommandGroup {
@@ -37,11 +38,20 @@ func newSkillsInstallCommand(ctx RuntimeContext) *cobra.Command {
 		Use: "install", Short: skillsInstallShortFactory(), Long: skillsInstallLongFactory(),
 		Example: skillsInstallExampleFactory(), Aliases: []string{"update", "sync"}, Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runSkillsInstallFactory(cmd.Context(), options.Force, options.JSON, ctx.Output, ctx.Stderr)
+			name := skills.Name()
+			if options.Dev {
+				name = "byted-supabase-dev"
+			}
+			source := ""
+			if options.Dev {
+				source = skills.DevSource()
+			}
+			return runSkillsInstallFactory(cmd.Context(), name, source, options.Force, options.JSON, ctx.Output, ctx.Stderr)
 		},
 	}
 	cmd.Flags().BoolVar(&options.Force, "force", false, "Reinstall even if already in sync.")
 	cmd.Flags().BoolVar(&options.JSON, "json", false, "Output structured JSON.")
+	cmd.Flags().BoolVar(&options.Dev, "dev", false, "Install the byted-supabase-dev skill.")
 	return cmd
 }
 
@@ -54,19 +64,26 @@ func newSkillsStatusCommand(ctx RuntimeContext) *cobra.Command {
 	return cmd
 }
 
-func runSkillsInstallFactory(ctx context.Context, force, asJSON bool, stdout, stderr io.Writer) error {
+func runSkillsInstallFactory(ctx context.Context, name, source string, force, asJSON bool, stdout, stderr io.Writer) error {
 	version := strings.TrimSpace(utils.Version)
-	if !force && skills.IsSynced(version) {
+	if name == "" {
+		name = skills.Name()
+	}
+	if !force && skills.IsSkillSynced(name, version) {
 		if asJSON {
-			return writeJSONFactory(stdout, map[string]any{"ok": true, "action": "in_sync", "skill": skills.Name(), "version": version, "message": fmt.Sprintf("%s skill is already in sync", skills.Name())})
+			return writeJSONFactory(stdout, map[string]any{"ok": true, "action": "in_sync", "skill": name, "version": version, "message": fmt.Sprintf("%s skill is already in sync", name)})
 		}
-		_, _ = fmt.Fprintf(stderr, "✓ %s skill is already in sync (use --force to reinstall)\n", skills.Name())
+		_, _ = fmt.Fprintf(stderr, "✓ %s skill is already in sync (use --force to reinstall)\n", name)
 		return nil
 	}
 	if !asJSON {
-		_, _ = fmt.Fprintf(stderr, "Installing %s skill from %s ...\n", skills.Name(), skills.Source())
+		displaySource := source
+		if displaySource == "" {
+			displaySource = skills.Source()
+		}
+		_, _ = fmt.Fprintf(stderr, "Installing %s skill from %s ...\n", name, displaySource)
 	}
-	res := skills.Sync(ctx, skills.SyncOptions{Version: version, Force: force})
+	res := skills.Sync(ctx, skills.SyncOptions{Version: version, Name: name, Source: source, Force: force})
 	if res.Action == "failed" {
 		msg := fmt.Sprintf("skill install failed: %s", res.Err)
 		if asJSON {
@@ -144,9 +161,9 @@ func skillsInstallShortFactory() string {
 	return fmt.Sprintf("Install or update the %s skill", skills.Name())
 }
 func skillsInstallLongFactory() string {
-	return fmt.Sprintf("Install or update the %s skill, pinning it to this CLI version.\n\nRuns: npx -y skills add <source> -s %s -g -y\n\nUse --force to reinstall even if it is already in sync.\nUse --json for structured output (for scripts and AI agents).", skills.Name(), skills.Name())
+	return fmt.Sprintf("Install or update the %s skill, pinning it to this CLI version.\n\nUse --dev to install the byted-supabase-dev skill.\nUse --force to reinstall even if it is already in sync.\nUse --json for structured output (for scripts and AI agents).", skills.Name())
 }
 func skillsInstallExampleFactory() string {
 	cli := skills.CLIName()
-	return fmt.Sprintf("  %s skills install\n  %s skills install --force\n  %s skills install --json", cli, cli, cli)
+	return fmt.Sprintf("  %s skills install\n  %s skills install --dev\n  %s skills install --force", cli, cli, cli)
 }

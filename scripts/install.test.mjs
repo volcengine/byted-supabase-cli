@@ -82,6 +82,13 @@ test("launcher install forwards --force to skills install", { skip: process.plat
   assert.equal(calls(f.log).at(-1), "cli skills install --force");
 });
 
+test("launcher install forwards --dev to skills install", { skip: process.platform === "win32" }, () => {
+  const f = fixture();
+  execFileSync(process.execPath, [LAUNCHER, "install", "--dev"], { env: f.env });
+
+  assert.deepEqual(calls(f.log).slice(-1), ["cli skills install --dev"]);
+});
+
 test("launcher install stops before skills when global npm install fails", { skip: process.platform === "win32" }, () => {
   const f = fixture();
   const result = spawnSync(process.execPath, [LAUNCHER, "install"], {

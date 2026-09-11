@@ -89,12 +89,60 @@ func RunLocal(ctx context.Context, advisorType string, level string, failOn stri
 	return outputAndCheck(filtered, failOn, os.Stdout)
 }
 
+func GetExecutorLints(ctx context.Context, executor query.SQLExecutor, advisorType, level string) ([]Lint, error) {
+	setupSQL, querySQL := splitLintsSQL()
+	if strings.TrimSpace(setupSQL) != "" {
+		if _, err := executor.Query(ctx, setupSQL); err != nil {
+			return nil, errors.Errorf("failed to prepare lint session: %w", err)
+		}
+	}
+	result, err := executor.Query(ctx, querySQL)
+	if err != nil {
+		return nil, errors.Errorf("failed to query lints: %w", err)
+	}
+	lints := make([]Lint, 0, len(result.Rows))
+	for _, row := range result.Rows {
+		if len(row) < 10 {
+			return nil, errors.Errorf("failed to parse lint row: expected 10 columns, got %d", len(row))
+		}
+		lint := Lint{
+			Name:        fmt.Sprint(row[0]),
+			Title:       fmt.Sprint(row[1]),
+			Level:       fmt.Sprint(row[2]),
+			Facing:      fmt.Sprint(row[3]),
+			Description: fmt.Sprint(row[5]),
+			Detail:      fmt.Sprint(row[6]),
+			Remediation: fmt.Sprint(row[7]),
+			CacheKey:    fmt.Sprint(row[9]),
+		}
+		if categories, ok := row[4].([]interface{}); ok {
+			for _, category := range categories {
+				lint.Categories = append(lint.Categories, fmt.Sprint(category))
+			}
+		}
+		if metadata, ok := row[8].(map[string]interface{}); ok {
+			data, marshalErr := json.Marshal(metadata)
+			if marshalErr != nil {
+				return nil, marshalErr
+			}
+			raw := json.RawMessage(data)
+			lint.Metadata = &raw
+		}
+		lints = append(lints, lint)
+	}
+	return filterLints(lints, advisorType, level), nil
+}
+
 func RunVolcengine(ctx context.Context, client *volcengine.Client, workspaceID, branchID, advisorType, level, failOn string) error {
 	filtered, err := GetVolcengineLints(ctx, client, workspaceID, branchID, advisorType, level)
 	if err != nil {
 		return err
 	}
 	return outputAndCheck(filtered, failOn, os.Stdout)
+}
+
+func WriteAndCheck(lints []Lint, failOn string, stdout io.Writer) error {
+	return outputAndCheck(lints, failOn, stdout)
 }
 
 func GetVolcengineLints(ctx context.Context, client *volcengine.Client, workspaceID, branchID, advisorType, level string) ([]Lint, error) {

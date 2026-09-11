@@ -61,6 +61,13 @@ func Run(ctx context.Context, projectRef string, interactive bool, fsys afero.Fs
 	return nil
 }
 
+func RunWithAPI(ctx context.Context, api storage.StorageAPI, interactive bool, fsys afero.Fs) error {
+	if api.Fetcher == nil {
+		return fmt.Errorf("storage API is not initialized")
+	}
+	return runStandard(ctx, api, interactive, fsys)
+}
+
 // RunVolcengine seeds standard Storage buckets and objects through the branch
 // gateway. Analytics and vector bucket APIs are not part of the VeSPB contract.
 func RunVolcengine(ctx context.Context, api *volcengine.Client, workspaceID, branchID string, interactive bool, fsys afero.Fs) error {

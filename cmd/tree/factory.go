@@ -13,6 +13,7 @@ type RuntimeContext struct {
 	FS     afero.Fs
 	Output io.Writer
 	Stderr io.Writer
+	Mode   string
 }
 
 type CommandFactory func(RuntimeContext) *cobra.Command

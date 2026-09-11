@@ -150,6 +150,19 @@ func TestStorageMV(t *testing.T) {
 	})
 }
 
+func TestRunWithAPIRejectsUninitializedAPI(t *testing.T) {
+	err := RunWithAPI(
+		context.Background(),
+		storage.StorageAPI{},
+		"ss:///private/readme.md",
+		"ss:///private/docs/file",
+		false,
+		afero.NewMemMapFs(),
+	)
+
+	assert.ErrorIs(t, err, errMissingAPI)
+}
+
 func TestMoveAll(t *testing.T) {
 	t.Run("rename directory within bucket", func(t *testing.T) {
 		// Setup mock api

@@ -167,6 +167,20 @@ func TestStorageCP(t *testing.T) {
 	})
 }
 
+func TestRunWithAPIRejectsUninitializedAPI(t *testing.T) {
+	err := RunWithAPI(
+		context.Background(),
+		storage.StorageAPI{},
+		"ss:///private/readme.md",
+		"readme.md",
+		false,
+		1,
+		afero.NewMemMapFs(),
+	)
+
+	assert.ErrorContains(t, err, "storage API is not initialized")
+}
+
 func TestUploadAll(t *testing.T) {
 	t.Run("uploads directory to new bucket", func(t *testing.T) {
 		// Setup in-memory fs

@@ -40,6 +40,15 @@ func Run(ctx context.Context, src, dst string, recursive bool, maxJobs uint, fsy
 	}, src, dst, recursive, maxJobs, fsys, opts...)
 }
 
+func RunWithAPI(ctx context.Context, api storage.StorageAPI, src, dst string, recursive bool, maxJobs uint, fsys afero.Fs, opts ...func(*storage.FileOptions)) error {
+	if api.Fetcher == nil {
+		return errors.New("storage API is not initialized")
+	}
+	return run(ctx, func() (storage.StorageAPI, error) {
+		return api, nil
+	}, src, dst, recursive, maxJobs, fsys, opts...)
+}
+
 func RunVolcengine(ctx context.Context, api *volcengine.Client, workspaceID, branchID, src, dst string, recursive bool, maxJobs uint, fsys afero.Fs, opts ...func(*storage.FileOptions)) error {
 	return run(ctx, func() (storage.StorageAPI, error) {
 		return client.NewVolcengineStorageAPI(ctx, api, workspaceID, branchID)

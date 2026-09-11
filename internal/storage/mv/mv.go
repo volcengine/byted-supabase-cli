@@ -30,11 +30,21 @@ import (
 var (
 	errUnsupportedMove = errors.New("Moving between buckets is unsupported")
 	errMissingPath     = errors.New("You must specify an object path")
+	errMissingAPI      = errors.New("storage API is not initialized")
 )
 
 func Run(ctx context.Context, src, dst string, recursive bool, fsys afero.Fs) error {
 	return run(ctx, func() (storage.StorageAPI, error) {
 		return client.NewStorageAPI(ctx, flags.ProjectRef)
+	}, src, dst, recursive, fsys)
+}
+
+func RunWithAPI(ctx context.Context, api storage.StorageAPI, src, dst string, recursive bool, fsys afero.Fs) error {
+	if api.Fetcher == nil {
+		return errMissingAPI
+	}
+	return run(ctx, func() (storage.StorageAPI, error) {
+		return api, nil
 	}, src, dst, recursive, fsys)
 }
 

@@ -68,5 +68,5 @@ func writeVolcengineLinkState(fsys afero.Fs, workspaceID, region string) error {
 			return err
 		}
 	}
-	return nil
+	return SaveManagementState(fsys, workspaceID, "")
 }

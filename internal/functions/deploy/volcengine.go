@@ -32,10 +32,10 @@ const (
 // entrypoint file. Single source of truth for "which native runtimes exist and
 // their entrypoints", shared by the deploy command and the MCP deploy tool.
 var NativeRuntimes = map[string]string{
-	RuntimeNativeNode20: defaultVolcengineEntrypoint(RuntimeNativeNode20),
-	RuntimePython39:     defaultVolcengineEntrypoint(RuntimePython39),
-	RuntimePython310:    defaultVolcengineEntrypoint(RuntimePython310),
-	RuntimePython312:    defaultVolcengineEntrypoint(RuntimePython312),
+	RuntimeNativeNode20: DefaultVolcengineEntrypoint(RuntimeNativeNode20),
+	RuntimePython39:     DefaultVolcengineEntrypoint(RuntimePython39),
+	RuntimePython310:    DefaultVolcengineEntrypoint(RuntimePython310),
+	RuntimePython312:    DefaultVolcengineEntrypoint(RuntimePython312),
 }
 
 // RunVolcengine deploys local Functions to the selected branch gateway.
@@ -69,7 +69,7 @@ func RunVolcengine(ctx context.Context, client *volcengine.Client, workspaceID, 
 			fmt.Fprintln(os.Stderr, "Skipping disabled Function:", slug)
 			continue
 		}
-		runtimeValue, err := normalizeVolcengineRuntime(slug, runtime, fsys)
+		runtimeValue, err := NormalizeVolcengineRuntime(slug, runtime, fsys)
 		if err != nil {
 			return err
 		}
@@ -121,7 +121,7 @@ func volcengineFunctionMetadata(slug, runtime string, noVerifyJWT *bool, importM
 	}
 	entrypoint := functionConfig.Entrypoint
 	if entrypoint == "" {
-		entrypoint = defaultVolcengineEntrypoint(runtime)
+		entrypoint = DefaultVolcengineEntrypoint(runtime)
 	} else {
 		entrypoint = trimFunctionPath(slug, filepath.ToSlash(entrypoint))
 	}
@@ -254,14 +254,14 @@ func trimFunctionPath(slug, filePath string) string {
 	return filePath
 }
 
-func defaultVolcengineEntrypoint(runtime string) string {
+func DefaultVolcengineEntrypoint(runtime string) string {
 	if strings.HasPrefix(runtime, "native-python") {
 		return "app.py"
 	}
 	return "index.ts"
 }
 
-func normalizeVolcengineRuntime(slug, runtime string, fsys afero.Fs) (string, error) {
+func NormalizeVolcengineRuntime(slug, runtime string, fsys afero.Fs) (string, error) {
 	configuredRuntime := ""
 	if functionConfig, ok := utils.Config.Functions[slug]; ok {
 		configuredRuntime = strings.TrimSpace(functionConfig.Runtime)

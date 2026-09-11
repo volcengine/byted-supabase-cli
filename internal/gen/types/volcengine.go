@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/go-errors/errors"
 	"github.com/volcengine/byted-supabase-cli/internal/utils"
@@ -19,6 +20,15 @@ import (
 type VolcengineParams struct {
 	WorkspaceID        string
 	BranchID           string
+	Lang               string
+	Schemas            []string
+	PostgrestV9Compat  bool
+	SwiftAccessControl string
+}
+
+type SupabaseParams struct {
+	SupabaseURL        string
+	ServiceRoleKey     string
 	Lang               string
 	Schemas            []string
 	PostgrestV9Compat  bool
@@ -35,6 +45,49 @@ func RunVolcengine(ctx context.Context, client *volcengine.Client, params Volcen
 		return err
 	}
 	return runVolcengineHTTPTypes(ctx, access, generatorURL, params, w)
+}
+
+func RunSupabase(ctx context.Context, params SupabaseParams, w io.Writer) error {
+	schemas := params.Schemas
+	if len(schemas) == 0 {
+		schemas = []string{"public"}
+	}
+	base := strings.TrimRight(strings.TrimSpace(params.SupabaseURL), "/")
+	if base == "" {
+		return errors.New("missing Supabase URL")
+	}
+	if strings.TrimSpace(params.ServiceRoleKey) == "" {
+		return errors.New("missing service role key; types generation requires service_role authentication")
+	}
+	query := url.Values{}
+	query.Set("included_schemas", strings.Join(schemas, ","))
+	if params.Lang == LangTypescript {
+		query.Set("detect_one_to_one_relationships", fmt.Sprintf("%t", !params.PostgrestV9Compat))
+	}
+	if params.Lang == LangSwift {
+		query.Set("access_control", params.SwiftAccessControl)
+	}
+	endpoint := base + "/postgres/generators/" + url.PathEscape(params.Lang) + "?" + query.Encode()
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return err
+	}
+	request.Header.Set("apikey", params.ServiceRoleKey)
+	request.Header.Set("Authorization", "Bearer "+params.ServiceRoleKey)
+	response, err := (&http.Client{Timeout: time.Minute}).Do(request)
+	if err != nil {
+		return errors.Errorf("failed to generate types: %w", err)
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return err
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return errors.Errorf("types generation failed (%s): %s", response.Status, strings.TrimSpace(string(body)))
+	}
+	_, err = w.Write(append(body, '\n'))
+	return err
 }
 
 func runVolcengineHTTPTypes(ctx context.Context, access volcengine.PgMetaAccess, generatorURL string, params VolcengineParams, w io.Writer) error {

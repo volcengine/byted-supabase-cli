@@ -6,6 +6,7 @@ package volcengine
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -101,6 +102,23 @@ func LoadConfigSetFromEnv() (ConfigSet, error) {
 	return configSetFromConfig(cfg)
 }
 
+// MissingCredentialsHint explains both ways of getting a linkable target when
+// no Volcengine credentials are configured. It is shared by the error returned
+// here and by the hint printed before an interactive Console Login, so the two
+// cannot drift apart.
+func MissingCredentialsHint() string {
+	return fmt.Sprintf(`No Volcengine credentials found.
+
+If you have a Volcengine account, sign in first:
+  byted-supabase-cli login                                     # SSO
+  byted-supabase-cli configure set --access-key <ak> --secret-key <sk> --region <region>
+  (or export %s / %s)
+
+If you don't, but you were given a Supabase branch's URL and API keys:
+  byted-supabase-cli link --supabase-url <url> --anon-key <key> --service-role-key <key>`,
+		EnvAccessKeyID, EnvSecretAccessKey)
+}
+
 func loadConfig() (Config, error) {
 	cfg := Config{
 		AccessKeyID:     strings.TrimSpace(os.Getenv(EnvAccessKeyID)),
@@ -123,7 +141,7 @@ func loadConfig() (Config, error) {
 		return Config{}, err
 	}
 	if profile == nil {
-		return Config{}, errors.Errorf("missing Volcengine credentials. Run `supabase configure set --access-key <key> --secret-key <secret> --region <region>` or set %s and %s.", EnvAccessKeyID, EnvSecretAccessKey)
+		return Config{}, errors.New(MissingCredentialsHint())
 	}
 	switch strings.ToLower(strings.TrimSpace(profile.Mode)) {
 	case "", ModeAK:

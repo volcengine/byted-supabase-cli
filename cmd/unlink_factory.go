@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/volcengine/byted-supabase-cli/internal/unlink"
 )
 
@@ -12,9 +13,13 @@ func newUnlinkCommand(ctx RuntimeContext) *cobra.Command {
 	return &cobra.Command{
 		GroupID: groupLocalDev,
 		Use:     "unlink",
-		Short:   "Unlink a Supabase Project or Volcengine Workspace",
+		Short:   "Remove the current link to a Supabase branch",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return unlink.Run(cmd.Context(), ctx.FS)
+			yes, err := cmd.Flags().GetBool("yes")
+			if err != nil {
+				yes = viper.GetBool("YES")
+			}
+			return unlink.Run(cmd.Context(), ctx.FS, yes)
 		},
 	}
 }

@@ -158,6 +158,25 @@ func TestSyncPassesSpecToRunner(t *testing.T) {
 	}
 }
 
+func TestSyncAllowsSourceOverride(t *testing.T) {
+	isolate(t)
+
+	r := &fakeRunner{}
+	res := Sync(context.Background(), SyncOptions{
+		Version: "1.4.0",
+		Name:    "byted-supabase-dev",
+		Source:  DevSource(),
+		Runner:  r,
+		Now:     fixedNow,
+	})
+	if res.Action != "synced" {
+		t.Fatalf("want synced, got %q (err=%v)", res.Action, res.Err)
+	}
+	if r.gotSpec.Source != DevSource() || r.gotSpec.Name != "byted-supabase-dev" {
+		t.Fatalf("spec = %+v", r.gotSpec)
+	}
+}
+
 func TestSyncFailureSkipsState(t *testing.T) {
 	isolate(t)
 
