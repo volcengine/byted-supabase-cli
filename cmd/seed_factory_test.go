@@ -59,3 +59,13 @@ func TestSeedFactoryCreatesIndependentCommands(t *testing.T) {
 	require.Equal(t, "workspace-first", firstBuckets.Flag("workspace-id").Value.String())
 	require.Equal(t, "", secondBuckets.Flag("workspace-id").Value.String())
 }
+
+func TestSeedWorkspaceFlagsAllowExplicitWorkspaceWithoutLinkedFlag(t *testing.T) {
+	command := newSeedCommand(defaultRuntimeContext())
+	buckets, _, err := command.Find([]string{"buckets"})
+	require.NoError(t, err)
+
+	require.NoError(t, buckets.Flags().Set("project-ref", "fleet-pear-9737c51l"))
+	require.False(t, buckets.Flags().Changed("linked"))
+	require.NotNil(t, buckets.Flag("linked"))
+}

@@ -42,3 +42,13 @@ func TestAuthFactoryCommandTree(t *testing.T) {
 		require.Equal(t, path[len(path)-1], found.Name())
 	}
 }
+
+func TestAuthWorkspaceFlagsAllowExplicitWorkspaceWithoutLinkedFlag(t *testing.T) {
+	command := newAuthCommand(defaultRuntimeContext())
+	getCommand, _, err := command.Find([]string{"config", "get"})
+	require.NoError(t, err)
+
+	require.NoError(t, getCommand.Flags().Set("workspace-id", "workspace-first"))
+	require.False(t, getCommand.Flags().Changed("linked"))
+	require.NotNil(t, getCommand.Flag("linked"))
+}

@@ -19,3 +19,13 @@ func TestManagementScopeIsInheritedByNestedCommands(t *testing.T) {
 	require.True(t, IsManagementAPI(compute))
 	require.True(t, isVolcengineManagementCommand(compute))
 }
+
+func TestSeedBucketsIsVolcengineManagementCommand(t *testing.T) {
+	root := newRootCommand()
+	root.AddCommand(newSeedCommand(defaultRuntimeContext()))
+	seed, _, err := root.Find([]string{"seed", "buckets"})
+	require.NoError(t, err)
+
+	require.True(t, isVolcengineManagementCommand(seed))
+	require.True(t, isVolcengineRemoteDataPlaneCommand(seed))
+}

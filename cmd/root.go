@@ -129,6 +129,8 @@ func isVolcengineManagementCommandExtra(cmd *cobra.Command) bool {
 		case "ls", "cp", "rm", "mv":
 			return true
 		}
+	case "seed":
+		return cmd.Name() == "buckets"
 	case "functions":
 		// Function management is served by the selected Volcengine branch gateway.
 		switch cmd.Name() {
@@ -163,9 +165,6 @@ func isVolcengineManagementCommandExtra(cmd *cobra.Command) bool {
 		}
 	case "buckets":
 		return cmd.Parent().Parent() != nil && cmd.Parent().Parent().Name() == "storage"
-	case "seed":
-		// Standard bucket seeding uploads objects through the branch Storage gateway.
-		return cmd.Name() == "buckets"
 	case "eips":
 		return cmd.Parent().Parent() != nil && cmd.Parent().Parent().Name() == "endpoints" && cmd.Name() == "list"
 	case "vpcs", "subnets":
@@ -199,6 +198,7 @@ func isVolcengineRemoteDataPlaneCommandExtra(cmd *cobra.Command) bool {
 	return cmd.Name() == "types" && hasCommandAncestor(cmd, "gen") ||
 		isVolcengineInspectCommand(cmd) ||
 		isVolcengineStorageCommand(cmd) ||
+		isVolcengineSeedCommand(cmd) ||
 		isVolcengineFunctionsCommand(cmd) ||
 		isVolcengineSecretsCommand(cmd) ||
 		isVolcengineAuthCommand(cmd)

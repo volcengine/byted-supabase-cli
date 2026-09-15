@@ -60,12 +60,12 @@ func addDBRemoteTargetFlags(cmd *cobra.Command, options *dbWorkspaceOptions, lin
 func prepareDBWorkspace(cmd *cobra.Command, fsys afero.Fs, options *dbWorkspaceOptions, prompt string) error {
 	workspace := cmd.Flags().Changed("workspace-id") || cmd.Flags().Changed("project-ref")
 	if options.DBURL != "" {
-		if options.Linked || workspace || cmd.Flags().Changed("branch-id") {
+		if cmd.Flags().Changed("linked") || workspace || cmd.Flags().Changed("branch-id") {
 			return errors.New("--db-url cannot be combined with --linked, --workspace-id, --project-ref, or --branch-id")
 		}
 		return nil
 	}
-	if options.Linked && workspace {
+	if cmd.Flags().Changed("linked") && options.Linked && workspace {
 		return errors.New("--linked cannot be combined with --workspace-id or --project-ref")
 	}
 	previous := flags.ProjectRef

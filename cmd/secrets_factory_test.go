@@ -57,3 +57,13 @@ func TestSecretsFactoryCreatesIndependentCommands(t *testing.T) {
 	require.Equal(t, "branch-first", firstList.Flag("branch-id").Value.String())
 	require.Equal(t, "", secondList.Flag("branch-id").Value.String())
 }
+
+func TestSecretsWorkspaceFlagsAllowExplicitWorkspaceWithoutLinkedFlag(t *testing.T) {
+	command := newSecretsCommand(defaultRuntimeContext())
+	setCommand, _, err := command.Find([]string{"set"})
+	require.NoError(t, err)
+
+	require.NoError(t, setCommand.Flags().Set("workspace-id", "workspace-first"))
+	require.False(t, setCommand.Flags().Changed("linked"))
+	require.NotNil(t, setCommand.Flag("linked"))
+}

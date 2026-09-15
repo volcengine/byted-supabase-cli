@@ -52,3 +52,13 @@ func TestFunctionsFactoryCreatesIndependentCommands(t *testing.T) {
 	require.Equal(t, "branch-first", firstList.Flag("branch-id").Value.String())
 	require.Equal(t, "", secondList.Flag("branch-id").Value.String())
 }
+
+func TestFunctionsWorkspaceFlagsAllowExplicitWorkspaceWithoutLinkedFlag(t *testing.T) {
+	command := newFunctionsCommand(defaultRuntimeContext())
+	deploy, _, err := command.Find([]string{"deploy"})
+	require.NoError(t, err)
+
+	require.NoError(t, deploy.Flags().Set("workspace-id", "workspace-first"))
+	require.False(t, deploy.Flags().Changed("linked"))
+	require.NotNil(t, deploy.Flag("linked"))
+}

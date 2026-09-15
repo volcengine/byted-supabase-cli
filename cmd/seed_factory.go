@@ -42,7 +42,8 @@ func addSeedWorkspaceFlags(cmd *cobra.Command, options *seedOptions) {
 }
 
 func prepareSeedWorkspace(cmd *cobra.Command, options *seedOptions) error {
-	if options.Linked && (cmd.Flags().Changed("workspace-id") || cmd.Flags().Changed("project-ref")) {
+	workspace := cmd.Flags().Changed("workspace-id") || cmd.Flags().Changed("project-ref")
+	if cmd.Flags().Changed("linked") && options.Linked && workspace {
 		return errors.New("--linked cannot be combined with --workspace-id or --project-ref")
 	}
 	previous := flags.ProjectRef

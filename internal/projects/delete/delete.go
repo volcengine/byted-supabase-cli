@@ -172,7 +172,7 @@ func findSupabaseWorkspace(ctx context.Context, cfgSet volcengine.ConfigSet, wor
 	var lastErr error
 	for _, region := range cfgSet.Regions {
 		cfg := cfgSet.ConfigForRegion(region)
-		result, err := volcengine.NewClient(cfg).DescribeWorkspaceDetail(ctx, workspaceID)
+		result, err := volcengine.NewWriteClient(cfg).DescribeWorkspaceDetail(ctx, workspaceID)
 		if err != nil {
 			lastErr = err
 			continue

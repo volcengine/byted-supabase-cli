@@ -56,7 +56,8 @@ func addStorageWorkspaceFlags(cmd *cobra.Command, options *storageOptions) {
 }
 
 func prepareStorageWorkspace(cmd *cobra.Command, options *storageOptions, prompt string) error {
-	if options.Linked && (cmd.Flags().Changed("workspace-id") || cmd.Flags().Changed("project-ref")) {
+	workspace := cmd.Flags().Changed("workspace-id") || cmd.Flags().Changed("project-ref")
+	if cmd.Flags().Changed("linked") && options.Linked && workspace {
 		return errors.New("--linked cannot be combined with --workspace-id or --project-ref")
 	}
 	previous := flags.ProjectRef

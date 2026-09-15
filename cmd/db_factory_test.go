@@ -48,3 +48,23 @@ func TestDBFactoryCommandTree(t *testing.T) {
 	require.Nil(t, lint.Flag("project-ref"))
 	require.NotNil(t, lint.Flag("db-url"))
 }
+
+func TestDBWorkspaceFlagsAllowExplicitWorkspaceWithoutLinkedFlag(t *testing.T) {
+	command := newDBCommand(defaultRuntimeContext())
+	query, _, err := command.Find([]string{"query"})
+	require.NoError(t, err)
+
+	require.NoError(t, query.Flags().Set("workspace-id", "workspace-first"))
+	require.False(t, query.Flags().Changed("linked"))
+	require.NotNil(t, query.Flag("linked"))
+}
+
+func TestDBURLDoesNotConflictWithUnchangedLinkedDefault(t *testing.T) {
+	command := newDBCommand(defaultRuntimeContext())
+	query, _, err := command.Find([]string{"query"})
+	require.NoError(t, err)
+
+	require.NoError(t, query.Flags().Set("db-url", "postgresql://user:pass@localhost:5432/db"))
+	options := &dbWorkspaceOptions{DBURL: query.Flag("db-url").Value.String(), Linked: true}
+	require.NoError(t, prepareDBWorkspace(query, afero.NewMemMapFs(), options, ""))
+}

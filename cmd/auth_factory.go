@@ -40,7 +40,7 @@ func addAuthWorkspaceFlags(cmd *cobra.Command, options *authWorkspaceOptions) {
 
 func prepareAuthWorkspace(cmd *cobra.Command, fsys afero.Fs, options *authWorkspaceOptions, prompt string) error {
 	workspace := cmd.Flags().Changed("workspace-id") || cmd.Flags().Changed("project-ref")
-	if options.Linked && workspace {
+	if cmd.Flags().Changed("linked") && options.Linked && workspace {
 		return errors.New("--linked cannot be combined with --workspace-id or --project-ref")
 	}
 	previous := flags.ProjectRef

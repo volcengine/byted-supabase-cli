@@ -79,3 +79,13 @@ func TestStorageFactoryCreatesIndependentCommands(t *testing.T) {
 	require.Equal(t, "true", firstCreate.Flag("public").Value.String())
 	require.Equal(t, "false", secondCreate.Flag("public").Value.String())
 }
+
+func TestStorageWorkspaceFlagsAllowExplicitWorkspaceWithoutLinkedFlag(t *testing.T) {
+	command := newStorageCommand(defaultRuntimeContext())
+	create, _, err := command.Find([]string{"buckets", "create"})
+	require.NoError(t, err)
+
+	require.NoError(t, create.Flags().Set("workspace-id", "workspace-first"))
+	require.False(t, create.Flags().Changed("linked"))
+	require.NotNil(t, create.Flag("linked"))
+}
