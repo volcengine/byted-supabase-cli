@@ -69,3 +69,18 @@ func TestSeedWorkspaceFlagsAllowExplicitWorkspaceWithoutLinkedFlag(t *testing.T)
 	require.False(t, buckets.Flags().Changed("linked"))
 	require.NotNil(t, buckets.Flag("linked"))
 }
+
+func TestSeedWorkspaceFlagAliasesResolveToWorkspaceID(t *testing.T) {
+	for _, flagName := range []string{"workspace-id", "project-ref"} {
+		t.Run(flagName, func(t *testing.T) {
+			command := newSeedCommand(defaultRuntimeContext())
+			buckets, _, err := command.Find([]string{"buckets"})
+			require.NoError(t, err)
+
+			require.NoError(t, buckets.Flags().Set(flagName, "blush-chili-6f170c0o"))
+			require.NoError(t, buckets.Flags().Set("branch-id", "br-proud-goat-22ce3afe"))
+			require.Equal(t, "blush-chili-6f170c0o", buckets.Flag("workspace-id").Value.String())
+			require.Equal(t, "br-proud-goat-22ce3afe", buckets.Flag("branch-id").Value.String())
+		})
+	}
+}
