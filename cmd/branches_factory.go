@@ -17,6 +17,7 @@ import (
 	"github.com/volcengine/byted-supabase-cli/internal/branches/manage"
 	branchupdate "github.com/volcengine/byted-supabase-cli/internal/branches/update"
 	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 )
 
 type branchesOptions struct {
@@ -130,6 +131,9 @@ func newBranchesListCommand(ctx RuntimeContext) *cobra.Command {
 			if err := validateVolcenginePageFlags(options.Limit, options.Offset, true); err != nil {
 				return err
 			}
+			if err := requireBranchesListWorkspace(ctx.FS, &options.branchesOptions); err != nil {
+				return err
+			}
 			if err := prepareBranchesWorkspace(cmd, ctx.FS, &options.branchesOptions, "Which project do you want to list branches for?"); err != nil {
 				return err
 			}
@@ -144,6 +148,20 @@ func newBranchesListCommand(ctx RuntimeContext) *cobra.Command {
 	cmd.Flags().IntVar(&options.Offset, "offset", 0, "Number of branches to skip before returning results.")
 	addBranchesWorkspaceFlags(cmd, &options.branchesOptions)
 	return cmd
+}
+
+func requireBranchesListWorkspace(fsys afero.Fs, options *branchesOptions) error {
+	if options.WorkspaceID != "" || flags.ProjectRef != "" {
+		return nil
+	}
+	linkedWorkspaceID, err := volcengine.LoadLinkedWorkspaceID(fsys)
+	if err != nil {
+		return err
+	}
+	if linkedWorkspaceID == "" {
+		return errors.New("missing workspace id. Supply --workspace-id, --project-ref, or run byted-supabase-cli link first.")
+	}
+	return nil
 }
 
 func newBranchesGetCommand(ctx RuntimeContext) *cobra.Command {
