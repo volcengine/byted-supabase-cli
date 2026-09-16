@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/volcengine/byted-supabase-cli/internal/errdefs"
 	operationlist "github.com/volcengine/byted-supabase-cli/internal/operations/list"
 	"github.com/volcengine/byted-supabase-cli/internal/projects/apiKeys"
 	"github.com/volcengine/byted-supabase-cli/internal/projects/create"
@@ -67,7 +68,7 @@ func newProjectsSettingsComputeCommand(ctx RuntimeContext) *cobra.Command {
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if !term.IsTerminal(int(os.Stdin.Fd())) {
 				if strings.TrimSpace(options.WorkspaceID) == "" {
-					return errors.New("missing workspace id. Supply --workspace-id, --project-ref, or run byted-supabase-cli link first.")
+					return errdefs.ErrMissingWorkspaceID
 				}
 				if !viper.GetBool("YES") {
 					return errors.New("missing required flag: --yes")
@@ -304,7 +305,7 @@ func newProjectsOperationsCommand(ctx RuntimeContext) *cobra.Command {
 	cmd := &cobra.Command{Use: "operations [ref/workspace-id]", Short: "List operation audit logs for a Volcengine Supabase workspace", Args: cobra.MaximumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if !term.IsTerminal(int(os.Stdin.Fd())) && len(args) == 0 {
-				return errors.New("missing workspace id. Supply projects operations [workspace-id].")
+				return errdefs.ErrMissingWorkspaceID
 			}
 			if err := validateVolcenginePageFlags(limit, offset, false); err != nil {
 				return err

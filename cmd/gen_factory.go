@@ -6,6 +6,7 @@ package cmd
 import (
 	"github.com/go-errors/errors"
 	"github.com/spf13/cobra"
+	"github.com/volcengine/byted-supabase-cli/internal/errdefs"
 	"github.com/volcengine/byted-supabase-cli/internal/gen/types"
 	"github.com/volcengine/byted-supabase-cli/internal/utils"
 	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
@@ -76,7 +77,7 @@ func newGenTypesCommand(ctx RuntimeContext) *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if options.WorkspaceID == "" {
-				return errors.New("missing workspace id")
+				return errdefs.ErrMissingWorkspaceID
 			}
 			if err := flags.LoadConfig(ctx.FS); err != nil {
 				return err

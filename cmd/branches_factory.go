@@ -16,6 +16,7 @@ import (
 	"github.com/volcengine/byted-supabase-cli/internal/branches/list"
 	"github.com/volcengine/byted-supabase-cli/internal/branches/manage"
 	branchupdate "github.com/volcengine/byted-supabase-cli/internal/branches/update"
+	"github.com/volcengine/byted-supabase-cli/internal/errdefs"
 	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 )
@@ -159,7 +160,7 @@ func requireBranchesListWorkspace(fsys afero.Fs, options *branchesOptions) error
 		return err
 	}
 	if linkedWorkspaceID == "" {
-		return errors.New("missing workspace id. Supply --workspace-id, --project-ref, or run byted-supabase-cli link first.")
+		return errdefs.ErrMissingWorkspaceID
 	}
 	return nil
 }

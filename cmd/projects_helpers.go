@@ -21,6 +21,7 @@ import (
 
 	"github.com/go-errors/errors"
 	"github.com/spf13/afero"
+	"github.com/volcengine/byted-supabase-cli/internal/errdefs"
 	"github.com/volcengine/byted-supabase-cli/internal/utils"
 	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
@@ -538,7 +539,7 @@ func loadOrPromptVolcengineProjectRef(ctx context.Context, fsys afero.Fs, titles
 		}
 		return promptVolcengineProjectRef(ctx, title)
 	}
-	return errors.New("missing workspace id. Supply --workspace-id, --project-ref, or run byted-supabase-cli link first.")
+	return errdefs.ErrMissingWorkspaceID
 }
 
 func ensureVolcengineRegion(ctx context.Context, fsys afero.Fs, allowLinked bool) error {

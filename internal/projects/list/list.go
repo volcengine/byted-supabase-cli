@@ -19,6 +19,7 @@ import (
 
 	"github.com/go-errors/errors"
 	"github.com/spf13/afero"
+	"github.com/volcengine/byted-supabase-cli/internal/errdefs"
 	"github.com/volcengine/byted-supabase-cli/internal/utils"
 	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
@@ -165,7 +166,7 @@ func runVolcengine(ctx context.Context, fsys afero.Fs, params RunParams) error {
 		return err
 	}
 	if params.Detail && params.ProjectRef == "" {
-		return errors.New("missing workspace id. Supply --workspace-id or --project-ref with --detail.")
+		return errdefs.ErrMissingWorkspaceID
 	}
 	if params.ProjectRef != "" {
 		return runVolcengineDetail(ctx, cfgSet, params.ProjectRef)
@@ -277,7 +278,7 @@ func printVolcengineListPaginationHint(pages []volcengineListPage) {
 
 func runVolcengineDetail(ctx context.Context, cfgSet volcengine.ConfigSet, workspaceID string) error {
 	if workspaceID == "" {
-		return errors.New("missing workspace id. Supply --workspace-id or --project-ref.")
+		return errdefs.ErrMissingWorkspaceID
 	}
 	var result volcengine.DescribeWorkspaceDetailResult
 	var lastErr error
