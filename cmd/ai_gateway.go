@@ -17,7 +17,6 @@ import (
 	"github.com/volcengine/byted-supabase-cli/internal/aigateway"
 	"github.com/volcengine/byted-supabase-cli/internal/projects/apiKeys"
 	"github.com/volcengine/byted-supabase-cli/internal/utils"
-	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 )
 
@@ -312,14 +311,11 @@ func newAIGatewayUsageCmd(ctx RuntimeContext) *cobra.Command {
 }
 
 func resolveAIGatewayManagementTarget(cmd *cobra.Command, workspace *aiGatewayWorkspaceOptions) (*volcengine.Client, string, string, error) {
-	if workspace.WorkspaceID == "" {
-		if err := loadOrPromptVolcengineProjectRef(cmd.Context(), afero.NewOsFs(), "Which workspace do you want to use for AI Gateway?"); err != nil {
-			return nil, "", "", err
-		}
-		workspace.WorkspaceID = flags.ProjectRef
-	} else if err := ensureVolcengineRegion(cmd.Context(), afero.NewOsFs(), false); err != nil {
+	workspaceID, err := (WorkspaceResolver{FS: afero.NewOsFs()}).Resolve(cmd.Context(), workspace.WorkspaceID, true)
+	if err != nil {
 		return nil, "", "", err
 	}
+	workspace.WorkspaceID = workspaceID
 	client, err := volcengineClientFromAuth(cmd)
 	if err != nil {
 		return nil, "", "", err
@@ -403,14 +399,11 @@ func newAIGatewayAPIKeysListCmd(ctx RuntimeContext) *cobra.Command {
 		if options.ProjectName == "" {
 			return errors.New("missing required flag: --project-name")
 		}
-		if options.WorkspaceID == "" {
-			if err := loadOrPromptVolcengineProjectRef(cmd.Context(), ctx.FS, "Which workspace do you want to list AI Gateway API keys for?"); err != nil {
-				return err
-			}
-			options.WorkspaceID = flags.ProjectRef
-		} else if err := ensureVolcengineRegion(cmd.Context(), ctx.FS, false); err != nil {
+		workspaceID, err := (WorkspaceResolver{FS: ctx.FS}).Resolve(cmd.Context(), options.WorkspaceID, true)
+		if err != nil {
 			return err
 		}
+		options.WorkspaceID = workspaceID
 		return apiKeys.RunVolcengine(cmd.Context(), apiKeys.RunVolcengineParams{
 			ProjectName: options.ProjectName, WorkspaceID: options.WorkspaceID, BranchID: options.BranchID, Fsys: ctx.FS, Reveal: options.Reveal,
 		})
@@ -576,14 +569,11 @@ func aiGatewayTokenSource(options aiGatewayTokenOptions) string {
 }
 
 func resolveAIGateway(cmd *cobra.Command, fsys afero.Fs, options *aiGatewayWorkspaceOptions) (volcengine.Config, string, error) {
-	if options.WorkspaceID == "" {
-		if err := loadOrPromptVolcengineProjectRef(cmd.Context(), fsys, "Which workspace do you want to use for AI Gateway?"); err != nil {
-			return volcengine.Config{}, "", err
-		}
-		options.WorkspaceID = flags.ProjectRef
-	} else if err := ensureVolcengineRegion(cmd.Context(), fsys, false); err != nil {
+	workspaceID, err := (WorkspaceResolver{FS: fsys}).Resolve(cmd.Context(), options.WorkspaceID, true)
+	if err != nil {
 		return volcengine.Config{}, "", err
 	}
+	options.WorkspaceID = workspaceID
 	cfg, err := volcengineConfigFromAuth(cmd)
 	if err != nil {
 		return volcengine.Config{}, "", err

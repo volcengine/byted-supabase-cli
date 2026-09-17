@@ -5,13 +5,17 @@ package cmd
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	"github.com/spf13/afero"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
 	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
+	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 )
 
 func TestInspectFactoryCreatesIndependentCommands(t *testing.T) {
@@ -128,4 +132,48 @@ func TestInspectDBURLUsesParsedDatabaseConfig(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, expected, received)
+}
+
+func TestInspectExplicitWorkspaceTakesPrecedenceOverGlobalProjectRef(t *testing.T) {
+	command := newInspectCommand(defaultRuntimeContext())
+	report, _, err := command.Find([]string{"report"})
+	require.NoError(t, err)
+	require.NoError(t, report.Flags().Set("workspace-id", "slick-date-94b4ba1t"))
+	require.NoError(t, report.Flags().Set("branch-id", "br-bloom-shag-69d11ed6"))
+
+	previous := flags.ProjectRef
+	flags.ProjectRef = "svc-sunny-flake-cf8489c0"
+	t.Cleanup(func() { flags.ProjectRef = previous })
+
+	options := &inspectOptions{
+		WorkspaceID: report.Flag("workspace-id").Value.String(),
+		BranchID:    report.Flag("branch-id").Value.String(),
+	}
+	require.NoError(t, preRunInspectFactory(report, afero.NewMemMapFs(), options))
+	require.Equal(t, "slick-date-94b4ba1t", options.WorkspaceID)
+	require.Equal(t, "br-bloom-shag-69d11ed6", options.BranchID)
+	require.Equal(t, "svc-sunny-flake-cf8489c0", flags.ProjectRef)
+}
+
+func TestInspectExplicitWorkspaceIDTakesPrecedenceOverLinkedWorkspace(t *testing.T) {
+	fsys := afero.NewMemMapFs()
+	require.NoError(t, utils.WriteFile(
+		filepath.Join(utils.TempDir, volcengine.LinkedWorkspaceFile),
+		[]byte("linked-workspace"),
+		fsys,
+	))
+
+	previousRegion := volcengine.RegionSetting()
+	volcengine.SetRegionOverride("cn-beijing")
+	t.Cleanup(func() {
+		volcengine.SetRegionOverride(previousRegion)
+	})
+
+	options := inspectOptions{}
+	leaf := &cobra.Command{Use: "db-stats"}
+	addInspectTargetFlags(leaf, &options)
+	require.NoError(t, leaf.Flags().Set("workspace-id", "explicit-workspace"))
+
+	require.NoError(t, preRunInspectFactory(leaf, fsys, &options))
+	require.Equal(t, "explicit-workspace", options.WorkspaceID)
 }

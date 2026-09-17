@@ -13,16 +13,13 @@ import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/volcengine/byted-supabase-cli/internal/errdefs"
 	operationlist "github.com/volcengine/byted-supabase-cli/internal/operations/list"
 	"github.com/volcengine/byted-supabase-cli/internal/projects/apiKeys"
 	"github.com/volcengine/byted-supabase-cli/internal/projects/create"
 	projectdelete "github.com/volcengine/byted-supabase-cli/internal/projects/delete"
 	projectlist "github.com/volcengine/byted-supabase-cli/internal/projects/list"
 	"github.com/volcengine/byted-supabase-cli/internal/projects/manage"
-	"github.com/volcengine/byted-supabase-cli/internal/projects/overview"
 	"github.com/volcengine/byted-supabase-cli/internal/utils"
-	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 	"golang.org/x/term"
 )
@@ -66,10 +63,10 @@ func newProjectsSettingsComputeCommand(ctx RuntimeContext) *cobra.Command {
 		Short: "Configure workspace compute and auto-sleep settings",
 		Args:  cobra.NoArgs,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
+			if err := prepareProjectsWorkspace(cmd, options); err != nil {
+				return err
+			}
 			if !term.IsTerminal(int(os.Stdin.Fd())) {
-				if strings.TrimSpace(options.WorkspaceID) == "" {
-					return errdefs.ErrMissingWorkspaceID
-				}
 				if !viper.GetBool("YES") {
 					return errors.New("missing required flag: --yes")
 				}
@@ -80,9 +77,6 @@ func newProjectsSettingsComputeCommand(ctx RuntimeContext) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := resolveSettingsWorkspace(cmd, options, "Which project do you want to modify workspace compute settings for?"); err != nil {
-				return err
-			}
 			serviceType, err := normalizeComputeServiceType(serviceType)
 			if err != nil {
 				return err
@@ -148,47 +142,30 @@ func newProjectsWorkspaceFlags(cmd *cobra.Command, options *projectsFactoryOptio
 	markFlagTelemetrySafe(cmd.Flags().Lookup("workspace-id"))
 }
 
-func resolveProjectsWorkspace(cmd *cobra.Command, options *projectsFactoryOptions, prompt string) error {
-	previous := flags.ProjectRef
-	if options.WorkspaceID != "" {
-		flags.ProjectRef = options.WorkspaceID
+func explicitWorkspaceIDFromFlags(cmd *cobra.Command) (string, error) {
+	workspaceID, _ := cmd.Flags().GetString("workspace-id")
+	projectRef, _ := cmd.Flags().GetString("project-ref")
+	workspaceID = strings.TrimSpace(workspaceID)
+	projectRef = strings.TrimSpace(projectRef)
+	if workspaceID != "" && projectRef != "" && workspaceID != projectRef {
+		return "", errors.New("--workspace-id and --project-ref must match when both are supplied")
 	}
-	err := loadOrPromptVolcengineProjectRef(cmd.Context(), afero.NewOsFs(), prompt)
-	if err == nil {
-		options.WorkspaceID = flags.ProjectRef
-	}
-	flags.ProjectRef = previous
-	return err
-}
-
-func resolveProjectsMutation(cmd *cobra.Command, args []string, prompt string) (string, error) {
-	previous := flags.ProjectRef
-	defer func() { flags.ProjectRef = previous }()
-	if len(args) > 0 {
-		flags.ProjectRef = strings.TrimSpace(args[0])
-	} else {
-		if err := ensureVolcengineRegion(cmd.Context(), afero.NewOsFs(), false); err != nil {
-			return "", err
-		}
-		if err := promptVolcengineProjectRef(cmd.Context(), prompt); err != nil {
-			return "", err
-		}
-	}
-	workspaceID := flags.ProjectRef
-	if err := ensureVolcengineRegion(cmd.Context(), afero.NewOsFs(), false); err != nil {
-		return "", err
+	if workspaceID == "" {
+		workspaceID = projectRef
 	}
 	return workspaceID, nil
 }
 
-func requireProjectsMutation(cmd *cobra.Command, args []string) error {
-	if !term.IsTerminal(int(os.Stdin.Fd())) && len(args) == 0 {
-		return cobra.ExactArgs(1)(cmd, args)
+func prepareProjectsWorkspace(cmd *cobra.Command, options *projectsFactoryOptions) error {
+	workspaceID, err := explicitWorkspaceIDFromFlags(cmd)
+	if err != nil {
+		return err
 	}
-	if !term.IsTerminal(int(os.Stdin.Fd())) && !viper.GetBool("YES") {
-		return errors.New("missing required flag: --yes")
+	resolved, err := (WorkspaceResolver{FS: afero.NewOsFs()}).Resolve(cmd.Context(), workspaceID, true)
+	if err == nil {
+		options.WorkspaceID = resolved
 	}
-	return nil
+	return err
 }
 
 func newProjectsCreateCommand(ctx RuntimeContext) *cobra.Command {
@@ -253,6 +230,11 @@ func newProjectsListCommand(ctx RuntimeContext) *cobra.Command {
 		if err := validateVolcenginePageFlags(limit, offset, true); err != nil {
 			return err
 		}
+		if detail {
+			if err := prepareProjectsWorkspace(cmd, &options); err != nil {
+				return err
+			}
+		}
 		if err := ensureVolcengineRegion(cmd.Context(), afero.NewOsFs(), false); err != nil {
 			return err
 		}
@@ -268,14 +250,17 @@ func newProjectsListCommand(ctx RuntimeContext) *cobra.Command {
 }
 
 func newProjectsOverviewCommand(ctx RuntimeContext) *cobra.Command {
-	var name string
+	var options projectsFactoryOptions
 	cmd := &cobra.Command{Use: "overview", Short: "Show Volcengine Supabase workspace overview", RunE: func(cmd *cobra.Command, args []string) error {
-		if err := ensureVolcengineRegion(cmd.Context(), afero.NewOsFs(), false); err != nil {
+		if err := prepareProjectsWorkspace(cmd, &options); err != nil {
 			return err
 		}
-		return overview.Run(cmd.Context(), overview.RunParams{ProjectName: name})
+		return projectlist.Run(cmd.Context(), afero.NewOsFs(), projectlist.RunParams{
+			ProjectRef: options.WorkspaceID,
+			Detail:     true,
+		})
 	}}
-	cmd.Flags().StringVar(&name, "volc-project-name", "", "Volcengine ProjectName to filter workspace overview.")
+	newProjectsWorkspaceFlags(cmd, &options)
 	_ = ctx
 	return cmd
 }
@@ -285,7 +270,7 @@ func newProjectsAPIKeysCommand(ctx RuntimeContext) *cobra.Command {
 	var projectName, branchID string
 	var reveal bool
 	cmd := &cobra.Command{Use: "api-keys", Short: "List API keys for the default or specified branch", RunE: func(cmd *cobra.Command, args []string) error {
-		if err := resolveProjectsWorkspace(cmd, &options, "Which project do you want to list API keys for?"); err != nil {
+		if err := prepareProjectsWorkspace(cmd, &options); err != nil {
 			return err
 		}
 		return apiKeys.RunVolcengine(cmd.Context(), apiKeys.RunVolcengineParams{ProjectName: projectName, WorkspaceID: options.WorkspaceID, BranchID: branchID, Fsys: afero.NewOsFs(), Reveal: reveal})
@@ -301,11 +286,11 @@ func newProjectsAPIKeysCommand(ctx RuntimeContext) *cobra.Command {
 func newProjectsOperationsCommand(ctx RuntimeContext) *cobra.Command {
 	var branchID, computeID, actionName, status, start, end string
 	var limit, offset int
-	var workspaceID string
-	cmd := &cobra.Command{Use: "operations [ref/workspace-id]", Short: "List operation audit logs for a Volcengine Supabase workspace", Args: cobra.MaximumNArgs(1),
+	var options projectsFactoryOptions
+	cmd := &cobra.Command{Use: "operations", Short: "List operation audit logs for a Volcengine Supabase workspace", Args: cobra.NoArgs,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			if !term.IsTerminal(int(os.Stdin.Fd())) && len(args) == 0 {
-				return errdefs.ErrMissingWorkspaceID
+			if err := prepareProjectsWorkspace(cmd, &options); err != nil {
+				return err
 			}
 			if err := validateVolcenginePageFlags(limit, offset, false); err != nil {
 				return err
@@ -318,19 +303,7 @@ func newProjectsOperationsCommand(ctx RuntimeContext) *cobra.Command {
 			return validateOperationTimeRange(start, end)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) > 0 {
-				workspaceID = strings.TrimSpace(args[0])
-			}
-			if err := ensureVolcengineRegion(cmd.Context(), afero.NewOsFs(), false); err != nil {
-				return err
-			}
-			if workspaceID == "" {
-				if err := promptVolcengineProjectRef(cmd.Context(), "Which project do you want to list operation logs for?"); err != nil {
-					return err
-				}
-				workspaceID = flags.ProjectRef
-			}
-			return operationlist.Run(cmd.Context(), operationlist.Params{WorkspaceID: workspaceID, BranchID: strings.TrimSpace(branchID), ComputeID: strings.TrimSpace(computeID), ActionName: strings.TrimSpace(actionName), Status: status, CreateTimeStart: strings.TrimSpace(start), CreateTimeEnd: strings.TrimSpace(end), Limit: limit, Offset: offset})
+			return operationlist.Run(cmd.Context(), operationlist.Params{WorkspaceID: options.WorkspaceID, BranchID: strings.TrimSpace(branchID), ComputeID: strings.TrimSpace(computeID), ActionName: strings.TrimSpace(actionName), Status: status, CreateTimeStart: strings.TrimSpace(start), CreateTimeEnd: strings.TrimSpace(end), Limit: limit, Offset: offset})
 		}}
 	cmd.Flags().StringVar(&branchID, "branch-id", "", "Branch ID to filter operations.")
 	cmd.Flags().StringVar(&computeID, "compute-id", "", "Compute ID to filter operations.")
@@ -340,6 +313,7 @@ func newProjectsOperationsCommand(ctx RuntimeContext) *cobra.Command {
 	cmd.Flags().StringVar(&end, "end-time", "", "Filter operations created at or before this RFC3339 UTC timestamp.")
 	cmd.Flags().IntVar(&limit, "limit", 10, "Maximum number of operations to return (1-100).")
 	cmd.Flags().IntVar(&offset, "offset", 0, "Number of operations to skip.")
+	newProjectsWorkspaceFlags(cmd, &options)
 	_ = ctx
 	return cmd
 }
@@ -375,62 +349,25 @@ func newProjectsWakeCommand(ctx RuntimeContext) *cobra.Command {
 }
 
 func newProjectsLifecycleCommand(ctx RuntimeContext, use, short string, run func(*cobra.Command, string) error) *cobra.Command {
+	options := &projectsFactoryOptions{}
 	cmd := &cobra.Command{Use: use, Short: short, Args: cobra.NoArgs, PreRunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireExplicitWorkspaceMutation(cmd); err != nil {
+		if err := prepareProjectsWorkspace(cmd, options); err != nil {
 			return err
 		}
-		_, err := resolveExplicitWorkspaceID(cmd, "Which project do you want to "+use+"?")
-		return err
+		return nil
 	}, RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := resolveExplicitWorkspaceID(cmd, "Which project do you want to "+use+"?")
-		if err != nil {
-			return err
-		}
-		return run(cmd, id)
+		return run(cmd, options.WorkspaceID)
 	}}
-	addExplicitWorkspaceFlags(cmd)
+	newProjectsWorkspaceFlags(cmd, options)
 	_ = ctx
 	return cmd
 }
 
-func addExplicitWorkspaceFlags(cmd *cobra.Command) {
-	cmd.Flags().String("workspace-id", "", "Workspace ID to operate on.")
-	cmd.Flags().String("project-ref", "", "Alias of --workspace-id.")
-}
-
-func requireExplicitWorkspaceMutation(cmd *cobra.Command) error {
-	if _, err := resolveExplicitWorkspaceID(cmd, ""); err != nil {
-		return err
-	}
-	if !term.IsTerminal(int(os.Stdin.Fd())) && !viper.GetBool("YES") {
-		return errors.New("missing required flag: --yes")
-	}
-	return nil
-}
-
-func resolveExplicitWorkspaceID(cmd *cobra.Command, prompt string) (string, error) {
-	workspaceID, _ := cmd.Flags().GetString("workspace-id")
-	projectRef, _ := cmd.Flags().GetString("project-ref")
-	workspaceID = strings.TrimSpace(workspaceID)
-	projectRef = strings.TrimSpace(projectRef)
-	if workspaceID != "" && projectRef != "" && workspaceID != projectRef {
-		return "", errors.New("--workspace-id and --project-ref must match when both are supplied")
-	}
-	if workspaceID == "" {
-		workspaceID = projectRef
-	}
-	if workspaceID == "" {
-		return "", errors.New("missing required flag: --workspace-id (or --project-ref)")
-	}
-	_ = prompt
-	return workspaceID, nil
-}
-
 func newProjectsRenameCommand(ctx RuntimeContext) *cobra.Command {
 	var name string
-	var workspaceID string
+	options := &projectsFactoryOptions{}
 	cmd := &cobra.Command{Use: "rename", Short: "Rename a Volcengine Supabase workspace", Args: cobra.NoArgs, PreRunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireExplicitWorkspaceMutation(cmd); err != nil {
+		if err := prepareProjectsWorkspace(cmd, options); err != nil {
 			return err
 		}
 		if !term.IsTerminal(int(os.Stdin.Fd())) && !cmd.Flags().Changed("name") {
@@ -438,10 +375,8 @@ func newProjectsRenameCommand(ctx RuntimeContext) *cobra.Command {
 		}
 		return nil
 	}, RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := resolveSettingsWorkspaceID(cmd, "Which project do you want to rename?")
-		if err != nil {
-			return err
-		}
+		id := options.WorkspaceID
+		var err error
 		if strings.TrimSpace(name) == "" {
 			name, err = utils.NewConsole().PromptText(cmd.Context(), "Enter new project name: ")
 			if err != nil {
@@ -454,8 +389,7 @@ func newProjectsRenameCommand(ctx RuntimeContext) *cobra.Command {
 		return manage.RenameWorkspace(cmd.Context(), manage.RenameParams{WorkspaceID: id, WorkspaceName: name})
 	}}
 	cmd.Flags().StringVar(&name, "name", "", "New Volcengine Supabase workspace name.")
-	cmd.Flags().StringVar(&workspaceID, "workspace-id", "", "Workspace ID to rename.")
-	cmd.Flags().StringVar(&workspaceID, "project-ref", "", "Alias of --workspace-id.")
+	newProjectsWorkspaceFlags(cmd, options)
 	_ = ctx
 	return cmd
 }
@@ -470,8 +404,9 @@ func newProjectsSettingsNameCommand(ctx RuntimeContext) *cobra.Command {
 
 func newProjectsDeletionProtectionCommand(ctx RuntimeContext) *cobra.Command {
 	var enable, disable bool
+	options := &projectsFactoryOptions{}
 	cmd := &cobra.Command{Use: "deletion-protection", Short: "Modify deletion protection for a Volcengine Supabase workspace", Args: cobra.NoArgs, PreRunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireExplicitWorkspaceMutation(cmd); err != nil {
+		if err := prepareProjectsWorkspace(cmd, options); err != nil {
 			return err
 		}
 		if enable && disable {
@@ -482,10 +417,8 @@ func newProjectsDeletionProtectionCommand(ctx RuntimeContext) *cobra.Command {
 		}
 		return nil
 	}, RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := resolveSettingsWorkspaceID(cmd, "Which project do you want to modify deletion protection for?")
-		if err != nil {
-			return err
-		}
+		id := options.WorkspaceID
+		var err error
 		if !cmd.Flags().Changed("enable") && !cmd.Flags().Changed("disable") {
 			enable, err = promptVolcengineDeletionProtection(cmd.Context())
 			if err != nil {
@@ -496,7 +429,7 @@ func newProjectsDeletionProtectionCommand(ctx RuntimeContext) *cobra.Command {
 	}}
 	cmd.Flags().BoolVar(&enable, "enable", false, "Enable deletion protection.")
 	cmd.Flags().BoolVar(&disable, "disable", false, "Disable deletion protection.")
-	addSettingsWorkspaceFlags(cmd)
+	newProjectsWorkspaceFlags(cmd, options)
 	_ = ctx
 	return cmd
 }
@@ -510,8 +443,9 @@ func newProjectsSettingsDeletionProtectionCommand(ctx RuntimeContext) *cobra.Com
 
 func newProjectsCreateTagsCommand(ctx RuntimeContext) *cobra.Command {
 	var tags []string
-	cmd := &cobra.Command{Use: "create-tags [ref/workspace-id]", Short: "Create tags for a Volcengine Supabase workspace", Args: cobra.MaximumNArgs(1), PreRunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireProjectsMutation(cmd, args); err != nil {
+	var options projectsFactoryOptions
+	cmd := &cobra.Command{Use: "create-tags", Short: "Create tags for a Volcengine Supabase workspace", Args: cobra.NoArgs, PreRunE: func(cmd *cobra.Command, args []string) error {
+		if err := prepareProjectsWorkspace(cmd, &options); err != nil {
 			return err
 		}
 		if !term.IsTerminal(int(os.Stdin.Fd())) && len(tags) == 0 {
@@ -519,10 +453,8 @@ func newProjectsCreateTagsCommand(ctx RuntimeContext) *cobra.Command {
 		}
 		return nil
 	}, RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := resolveProjectsMutation(cmd, args, "Which project do you want to create tags for?")
-		if err != nil {
-			return err
-		}
+		id := options.WorkspaceID
+		var err error
 		if len(tags) == 0 {
 			tags, err = promptVolcengineTags(cmd.Context())
 			if err != nil {
@@ -536,14 +468,16 @@ func newProjectsCreateTagsCommand(ctx RuntimeContext) *cobra.Command {
 		return manage.CreateTags(cmd.Context(), manage.TagsParams{WorkspaceID: id, Tags: parsed})
 	}}
 	cmd.Flags().StringArrayVar(&tags, "tag", []string{}, "Tag to create in key=value format. Can be specified multiple times.")
+	newProjectsWorkspaceFlags(cmd, &options)
 	_ = ctx
 	return cmd
 }
 
 func newProjectsDeleteTagsCommand(ctx RuntimeContext) *cobra.Command {
 	var keys []string
-	cmd := &cobra.Command{Use: "delete-tags [ref/workspace-id]", Short: "Delete tags from a Volcengine Supabase workspace", Args: cobra.MaximumNArgs(1), PreRunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireProjectsMutation(cmd, args); err != nil {
+	var options projectsFactoryOptions
+	cmd := &cobra.Command{Use: "delete-tags", Short: "Delete tags from a Volcengine Supabase workspace", Args: cobra.NoArgs, PreRunE: func(cmd *cobra.Command, args []string) error {
+		if err := prepareProjectsWorkspace(cmd, &options); err != nil {
 			return err
 		}
 		if !term.IsTerminal(int(os.Stdin.Fd())) && len(keys) == 0 {
@@ -551,10 +485,8 @@ func newProjectsDeleteTagsCommand(ctx RuntimeContext) *cobra.Command {
 		}
 		return nil
 	}, RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := resolveProjectsMutation(cmd, args, "Which project do you want to delete tags from?")
-		if err != nil {
-			return err
-		}
+		id := options.WorkspaceID
+		var err error
 		if len(keys) == 0 {
 			keys, err = promptVolcengineTagKeys(cmd.Context(), id)
 			if err != nil {
@@ -568,14 +500,16 @@ func newProjectsDeleteTagsCommand(ctx RuntimeContext) *cobra.Command {
 		return manage.DeleteTags(cmd.Context(), manage.TagsParams{WorkspaceID: id, TagKeys: parsed})
 	}}
 	cmd.Flags().StringSliceVar(&keys, "key", []string{}, "Tag key to delete.")
+	newProjectsWorkspaceFlags(cmd, &options)
 	_ = ctx
 	return cmd
 }
 
 func newProjectsWorkspaceSettingsCommand(ctx RuntimeContext) *cobra.Command {
 	var retention int
+	options := &projectsFactoryOptions{}
 	cmd := &cobra.Command{Use: "retention", Short: "Configure workspace history retention", Args: cobra.NoArgs, PreRunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireExplicitWorkspaceMutation(cmd); err != nil {
+		if err := prepareProjectsWorkspace(cmd, options); err != nil {
 			return err
 		}
 		if !term.IsTerminal(int(os.Stdin.Fd())) && !cmd.Flags().Changed("history-retention-hours") {
@@ -583,10 +517,8 @@ func newProjectsWorkspaceSettingsCommand(ctx RuntimeContext) *cobra.Command {
 		}
 		return nil
 	}, RunE: func(cmd *cobra.Command, args []string) error {
-		id, err := resolveSettingsWorkspaceID(cmd, "Which project do you want to modify workspace settings for?")
-		if err != nil {
-			return err
-		}
+		id := options.WorkspaceID
+		var err error
 		if !cmd.Flags().Changed("history-retention-hours") {
 			current, e := describeVolcengineWorkspaceForPrompt(cmd.Context(), id)
 			if e != nil {
@@ -600,7 +532,7 @@ func newProjectsWorkspaceSettingsCommand(ctx RuntimeContext) *cobra.Command {
 		return manage.ModifyWorkspaceSettings(cmd.Context(), manage.WorkspaceSettingsParams{WorkspaceID: id, HistoryRetentionHours: retention})
 	}}
 	cmd.Flags().IntVar(&retention, "history-retention-hours", 0, "History retention hours.")
-	addSettingsWorkspaceFlags(cmd)
+	newProjectsWorkspaceFlags(cmd, options)
 	_ = ctx
 	return cmd
 }
@@ -614,12 +546,13 @@ func newProjectsSettingsRetentionCommand(ctx RuntimeContext) *cobra.Command {
 
 func newProjectsSettingsNetworkCommand(ctx RuntimeContext) *cobra.Command {
 	var branchID, vpcID, subnetID, protocol string
+	options := &projectsFactoryOptions{}
 	cmd := &cobra.Command{
 		Use:   "network",
 		Short: "Configure workspace network protocol",
 		Args:  cobra.NoArgs,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			if err := requireExplicitWorkspaceMutation(cmd); err != nil {
+			if err := prepareProjectsWorkspace(cmd, options); err != nil {
 				return err
 			}
 			if strings.TrimSpace(vpcID) == "" || strings.TrimSpace(subnetID) == "" {
@@ -628,10 +561,7 @@ func newProjectsSettingsNetworkCommand(ctx RuntimeContext) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, err := resolveSettingsWorkspaceID(cmd, "Which project do you want to modify network settings for?")
-			if err != nil {
-				return err
-			}
+			id := options.WorkspaceID
 			cfgSet, err := volcengine.LoadConfigSetFromEnv()
 			if err != nil {
 				return err
@@ -653,28 +583,26 @@ func newProjectsSettingsNetworkCommand(ctx RuntimeContext) *cobra.Command {
 	cmd.Flags().StringVar(&vpcID, "vpc-id", "", "VPC ID.")
 	cmd.Flags().StringVar(&subnetID, "subnet-id", "", "Subnet ID.")
 	cmd.Flags().StringVar(&protocol, "internet-protocol", "IPv4", "Internet protocol: IPv4 or DualStack.")
-	addSettingsWorkspaceFlags(cmd)
+	newProjectsWorkspaceFlags(cmd, options)
 	_ = ctx
 	return cmd
 }
 
 func newProjectsSettingsPrivateDNSCommand(ctx RuntimeContext) *cobra.Command {
 	var visibility bool
+	options := &projectsFactoryOptions{}
 	cmd := &cobra.Command{
 		Use:   "private-dns",
 		Short: "Configure private DNS visibility",
 		Args:  cobra.NoArgs,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			if err := requireExplicitWorkspaceMutation(cmd); err != nil {
+			if err := prepareProjectsWorkspace(cmd, options); err != nil {
 				return err
 			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, err := resolveSettingsWorkspaceID(cmd, "Which project do you want to modify private DNS visibility for?")
-			if err != nil {
-				return err
-			}
+			id := options.WorkspaceID
 			cfgSet, err := volcengine.LoadConfigSetFromEnv()
 			if err != nil {
 				return err
@@ -690,39 +618,9 @@ func newProjectsSettingsPrivateDNSCommand(ctx RuntimeContext) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&visibility, "enabled", false, "Expose private DNS through public DNS.")
-	addSettingsWorkspaceFlags(cmd)
+	newProjectsWorkspaceFlags(cmd, options)
 	_ = ctx
 	return cmd
-}
-
-func addSettingsWorkspaceFlags(cmd *cobra.Command) {
-	cmd.Flags().String("workspace-id", "", "Workspace ID to configure.")
-	cmd.Flags().String("project-ref", "", "Alias of --workspace-id.")
-}
-
-func resolveSettingsWorkspace(cmd *cobra.Command, options *projectsFactoryOptions, prompt string) error {
-	id, err := resolveSettingsWorkspaceID(cmd, prompt)
-	if err != nil {
-		return err
-	}
-	options.WorkspaceID = id
-	return nil
-}
-
-func resolveSettingsWorkspaceID(cmd *cobra.Command, prompt string) (string, error) {
-	workspaceID, _ := cmd.Flags().GetString("workspace-id")
-	projectRef, _ := cmd.Flags().GetString("project-ref")
-	if strings.TrimSpace(workspaceID) != "" && strings.TrimSpace(projectRef) != "" && strings.TrimSpace(workspaceID) != strings.TrimSpace(projectRef) {
-		return "", errors.New("--workspace-id and --project-ref must match when both are supplied")
-	}
-	if strings.TrimSpace(workspaceID) == "" {
-		workspaceID = projectRef
-	}
-	options := &projectsFactoryOptions{WorkspaceID: strings.TrimSpace(workspaceID)}
-	if err := resolveProjectsWorkspace(cmd, options, prompt); err != nil {
-		return "", err
-	}
-	return options.WorkspaceID, nil
 }
 
 func findWorkspaceForSettings(ctx context.Context, cfgSet volcengine.ConfigSet, workspaceID string) (volcengine.Workspace, volcengine.Config, error) {

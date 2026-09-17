@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"github.com/volcengine/byted-supabase-cli/internal/pages"
-	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 )
 
 type pagesOptions struct {
@@ -51,15 +50,10 @@ func addPagesWorkspaceFlagsFactory(cmd *cobra.Command, options *pagesOptions, he
 }
 
 func resolvePagesWorkspaceFactory(cmd *cobra.Command, options *pagesOptions, title string) error {
-	previous := flags.ProjectRef
-	if options.WorkspaceID != "" {
-		flags.ProjectRef = options.WorkspaceID
-	}
-	err := loadOrPromptVolcengineProjectRef(cmd.Context(), afero.NewOsFs(), title)
+	workspaceID, err := (WorkspaceResolver{FS: afero.NewOsFs()}).Resolve(cmd.Context(), options.WorkspaceID, true)
 	if err == nil {
-		options.WorkspaceID = flags.ProjectRef
+		options.WorkspaceID = workspaceID
 	}
-	flags.ProjectRef = previous
 	return err
 }
 

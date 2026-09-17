@@ -11,7 +11,6 @@ import (
 	endpointlist "github.com/volcengine/byted-supabase-cli/internal/endpoints/list"
 	endpointmanage "github.com/volcengine/byted-supabase-cli/internal/endpoints/manage"
 	endpointnetwork "github.com/volcengine/byted-supabase-cli/internal/endpoints/network"
-	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 )
 
 type endpointsOptions struct {
@@ -50,15 +49,10 @@ func addEndpointsWorkspaceFlags(cmd *cobra.Command, options *endpointsOptions) {
 }
 
 func prepareEndpointsWorkspace(cmd *cobra.Command, fsys afero.Fs, options *endpointsOptions, prompt string) error {
-	previous := flags.ProjectRef
-	if options.WorkspaceID != "" {
-		flags.ProjectRef = options.WorkspaceID
-	}
-	err := loadOrPromptVolcengineProjectRef(cmd.Context(), fsys, prompt)
+	workspaceID, err := (WorkspaceResolver{FS: fsys}).Resolve(cmd.Context(), options.WorkspaceID, true)
 	if err == nil {
-		options.WorkspaceID = flags.ProjectRef
+		options.WorkspaceID = workspaceID
 	}
-	flags.ProjectRef = previous
 	return err
 }
 

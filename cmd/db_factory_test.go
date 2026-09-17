@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
+	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 )
 
 func TestDBFactoryCreatesIndependentCommands(t *testing.T) {
@@ -67,4 +68,27 @@ func TestDBURLDoesNotConflictWithUnchangedLinkedDefault(t *testing.T) {
 	require.NoError(t, query.Flags().Set("db-url", "postgresql://user:pass@localhost:5432/db"))
 	options := &dbWorkspaceOptions{DBURL: query.Flag("db-url").Value.String(), Linked: true}
 	require.NoError(t, prepareDBWorkspace(query, afero.NewMemMapFs(), options, ""))
+}
+
+func TestDBExplicitWorkspaceTakesPrecedenceOverGlobalProjectRef(t *testing.T) {
+	command := newDBCommand(defaultRuntimeContext())
+	dump, _, err := command.Find([]string{"dump"})
+	require.NoError(t, err)
+	require.NoError(t, dump.Flags().Set("workspace-id", "jolly-apple-94b8b75n"))
+	require.NoError(t, dump.Flags().Set("branch-id", "br-dear-puma-c36cb238"))
+	require.NoError(t, dump.Flags().Set("linked", "false"))
+
+	previous := flags.ProjectRef
+	flags.ProjectRef = "svc-sunny-flake-cf8489c0"
+	t.Cleanup(func() { flags.ProjectRef = previous })
+
+	options := &dbWorkspaceOptions{
+		WorkspaceID: dump.Flag("workspace-id").Value.String(),
+		BranchID:    dump.Flag("branch-id").Value.String(),
+		Linked:      false,
+	}
+	require.NoError(t, prepareDBWorkspace(dump, afero.NewMemMapFs(), options, ""))
+	require.Equal(t, "jolly-apple-94b8b75n", options.WorkspaceID)
+	require.Equal(t, "br-dear-puma-c36cb238", options.BranchID)
+	require.Equal(t, "svc-sunny-flake-cf8489c0", flags.ProjectRef)
 }

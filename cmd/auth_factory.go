@@ -10,7 +10,6 @@ import (
 	authconfig "github.com/volcengine/byted-supabase-cli/internal/auth/config"
 	authhooks "github.com/volcengine/byted-supabase-cli/internal/auth/hooks"
 	authtp "github.com/volcengine/byted-supabase-cli/internal/auth/thirdparty"
-	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 )
 
@@ -43,15 +42,10 @@ func prepareAuthWorkspace(cmd *cobra.Command, fsys afero.Fs, options *authWorksp
 	if cmd.Flags().Changed("linked") && options.Linked && workspace {
 		return errors.New("--linked cannot be combined with --workspace-id or --project-ref")
 	}
-	previous := flags.ProjectRef
-	if options.WorkspaceID != "" {
-		flags.ProjectRef = options.WorkspaceID
+	workspaceID, err := (WorkspaceResolver{FS: fsys}).Resolve(cmd.Context(), options.WorkspaceID, options.Linked)
+	if err == nil {
+		options.WorkspaceID = workspaceID
 	}
-	err := loadOrPromptVolcengineProjectRef(cmd.Context(), fsys, prompt)
-	if options.WorkspaceID == "" {
-		options.WorkspaceID = flags.ProjectRef
-	}
-	flags.ProjectRef = previous
 	return err
 }
 

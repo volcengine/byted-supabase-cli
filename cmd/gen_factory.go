@@ -15,7 +15,6 @@ import (
 type genTypesOptions struct {
 	WorkspaceID       string
 	BranchID          string
-	Linked            bool
 	Language          utils.EnumFlag
 	Schemas           []string
 	SwiftAccess       utils.EnumFlag
@@ -48,10 +47,6 @@ func newGenTypesCommand(ctx RuntimeContext) *cobra.Command {
 		Use:   "types",
 		Short: "Generate types from Postgres schema",
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			workspaceSet := cmd.Flags().Changed("workspace-id") || cmd.Flags().Changed("project-ref") || cmd.Flags().Changed("project-id")
-			if cmd.Flags().Changed("linked") && workspaceSet {
-				return errors.New("--linked cannot be combined with --workspace-id, --project-ref, or --project-id")
-			}
 			if len(args) > 0 && args[0] != types.LangTypescript && !cmd.Flags().Changed("lang") {
 				return errors.New("use --lang flag to specify the typegen language")
 			}
@@ -61,18 +56,11 @@ func newGenTypesCommand(ctx RuntimeContext) *cobra.Command {
 			if cmd.Flags().Changed("swift-access-control") && options.Language.Value != types.LangSwift {
 				return errors.New("--swift-access-control is supported only with --lang swift")
 			}
-			previous := flags.ProjectRef
-			if options.WorkspaceID != "" {
-				flags.ProjectRef = options.WorkspaceID
-			}
-			if err := loadOrPromptVolcengineProjectRef(cmd.Context(), ctx.FS, "Which project do you want to generate types for?"); err != nil {
-				flags.ProjectRef = previous
+			workspaceID, err := (WorkspaceResolver{FS: ctx.FS}).Resolve(cmd.Context(), options.WorkspaceID, true)
+			if err != nil {
 				return err
 			}
-			if options.WorkspaceID == "" {
-				options.WorkspaceID = flags.ProjectRef
-			}
-			flags.ProjectRef = previous
+			options.WorkspaceID = workspaceID
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -95,11 +83,10 @@ func newGenTypesCommand(ctx RuntimeContext) *cobra.Command {
 				SwiftAccessControl: options.SwiftAccess.Value,
 			}, ctx.Output)
 		},
-		Example: `  byted-supabase-cli gen types --linked --lang typescript
+		Example: `  byted-supabase-cli gen types --lang typescript
   byted-supabase-cli gen types --workspace-id workspace-id --lang go --schema public
   byted-supabase-cli gen types --workspace-id workspace-id --lang swift --swift-access-control public`,
 	}
-	cmd.Flags().BoolVar(&options.Linked, "linked", false, "Use the linked workspace when --workspace-id/--project-ref is omitted.")
 	cmd.Flags().StringVar(&options.WorkspaceID, "workspace-id", "", "Workspace ID of the Volcengine Supabase project. Defaults to linked project if omitted.")
 	cmd.Flags().StringVar(&options.WorkspaceID, "project-ref", "", "Project ref of the Supabase project. Alias of --workspace-id. Defaults to linked project if omitted.")
 	cmd.Flags().StringVar(&options.WorkspaceID, "project-id", "", "Project ID of the Supabase project. Alias of --workspace-id for Volcengine.")

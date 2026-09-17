@@ -4,10 +4,13 @@
 package cmd
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
+	"github.com/volcengine/byted-supabase-cli/internal/utils"
+	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 )
 
 func TestGenFactoryCreatesIndependentCommands(t *testing.T) {
@@ -39,4 +42,23 @@ func TestGenFactoryCommandTree(t *testing.T) {
 	require.Equal(t, "gen", command.Name())
 	require.Len(t, command.Commands(), 1)
 	require.Equal(t, "types", command.Commands()[0].Name())
+}
+
+func TestGenTypesUsesLinkedWorkspaceWithoutLinkedFlag(t *testing.T) {
+	previousRegion := volcengine.RegionSetting()
+	volcengine.SetRegionOverride("cn-beijing")
+	t.Cleanup(func() {
+		volcengine.SetRegionOverride(previousRegion)
+	})
+
+	fsys := afero.NewMemMapFs()
+	require.NoError(t, utils.WriteFile(
+		filepath.Join(utils.TempDir, volcengine.LinkedWorkspaceFile),
+		[]byte("linked-workspace"),
+		fsys,
+	))
+
+	command := newGenTypesCommand(RuntimeContext{FS: fsys})
+	require.Nil(t, command.Flags().Lookup("linked"))
+	require.NoError(t, command.PreRunE(command, nil))
 }

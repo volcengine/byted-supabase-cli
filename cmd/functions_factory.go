@@ -12,7 +12,6 @@ import (
 	"github.com/volcengine/byted-supabase-cli/internal/functions/download"
 	"github.com/volcengine/byted-supabase-cli/internal/functions/list"
 	new_ "github.com/volcengine/byted-supabase-cli/internal/functions/new"
-	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 )
 
 type functionsOptions struct {
@@ -50,20 +49,15 @@ func newFunctionsWorkspaceFlags(cmd *cobra.Command, options *functionsOptions) {
 	markFlagTelemetrySafe(cmd.Flags().Lookup("workspace-id"))
 }
 
-func prepareFunctionsWorkspace(cmd *cobra.Command, options *functionsOptions, prompt string) error {
+func prepareFunctionsWorkspace(cmd *cobra.Command, fsys afero.Fs, options *functionsOptions, prompt string) error {
 	workspace := cmd.Flags().Changed("workspace-id") || cmd.Flags().Changed("project-ref")
 	if cmd.Flags().Changed("linked") && options.Linked && workspace {
 		return errors.New("--linked cannot be combined with --workspace-id or --project-ref")
 	}
-	previous := flags.ProjectRef
-	if options.WorkspaceID != "" {
-		flags.ProjectRef = options.WorkspaceID
-	}
-	err := loadOrPromptVolcengineProjectRef(cmd.Context(), afero.NewOsFs(), prompt)
+	workspaceID, err := (WorkspaceResolver{FS: fsys}).Resolve(cmd.Context(), options.WorkspaceID, options.Linked)
 	if err == nil {
-		options.WorkspaceID = flags.ProjectRef
+		options.WorkspaceID = workspaceID
 	}
-	flags.ProjectRef = previous
 	return err
 }
 
@@ -72,7 +66,7 @@ func newFunctionsListCommand(ctx RuntimeContext) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "list", Short: "List all Functions in Supabase", Long: "List all Functions in the linked Supabase project.",
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return prepareFunctionsWorkspace(cmd, &options, "Which project do you want to list Functions for?")
+			return prepareFunctionsWorkspace(cmd, ctx.FS, &options, "Which project do you want to list Functions for?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := volcengineClientFromAuth(cmd)
@@ -95,7 +89,7 @@ func newFunctionsDeleteCommand(ctx RuntimeContext) *cobra.Command {
 		Long: "Delete a Function from the linked Supabase project. This does NOT remove the Function locally.",
 		Args: cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return prepareFunctionsWorkspace(cmd, &options, "Which project do you want to delete a Function from?")
+			return prepareFunctionsWorkspace(cmd, ctx.FS, &options, "Which project do you want to delete a Function from?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := volcengineClientFromAuth(cmd)
@@ -119,7 +113,7 @@ func newFunctionsDeployCommand(ctx RuntimeContext) *cobra.Command {
 		Use: "deploy [Function name]", Short: "Deploy a Function to Supabase",
 		Long: "Deploy a Function to the linked Supabase project.",
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return prepareFunctionsWorkspace(cmd, &options, "Which project do you want to deploy Functions to?")
+			return prepareFunctionsWorkspace(cmd, ctx.FS, &options, "Which project do you want to deploy Functions to?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := volcengineClientFromAuth(cmd)
@@ -167,7 +161,7 @@ func newFunctionsDownloadCommand(ctx RuntimeContext) *cobra.Command {
 		Long: "Download the source code for a Function from the linked Supabase project. If no function name is provided, downloads all functions.",
 		Args: cobra.MaximumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return prepareFunctionsWorkspace(cmd, &options, "Which project do you want to download Functions from?")
+			return prepareFunctionsWorkspace(cmd, ctx.FS, &options, "Which project do you want to download Functions from?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			slug := ""

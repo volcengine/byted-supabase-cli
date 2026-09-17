@@ -61,15 +61,14 @@ func preRunInspectFactory(cmd *cobra.Command, fsys afero.Fs, options *inspectOpt
 	if direct {
 		return nil
 	}
-	previous := flags.ProjectRef
-	if options.WorkspaceID != "" {
-		flags.ProjectRef = options.WorkspaceID
+	workspaceID, err := (WorkspaceResolver{FS: fsys}).Resolve(
+		cmd.Context(),
+		options.WorkspaceID,
+		options.Linked,
+	)
+	if err == nil {
+		options.WorkspaceID = workspaceID
 	}
-	err := loadOrPromptVolcengineProjectRef(cmd.Context(), fsys, "Which project do you want to inspect?")
-	if options.WorkspaceID == "" {
-		options.WorkspaceID = flags.ProjectRef
-	}
-	flags.ProjectRef = previous
 	return err
 }
 

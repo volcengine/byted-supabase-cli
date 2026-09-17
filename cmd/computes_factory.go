@@ -13,7 +13,6 @@ import (
 	branchmanage "github.com/volcengine/byted-supabase-cli/internal/branches/manage"
 	computedescribe "github.com/volcengine/byted-supabase-cli/internal/computes/describe"
 	computemanage "github.com/volcengine/byted-supabase-cli/internal/computes/manage"
-	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 	"golang.org/x/term"
 )
@@ -85,15 +84,10 @@ func addComputesWorkspaceFlags(cmd *cobra.Command, options *computesOptions) {
 }
 
 func prepareComputesWorkspace(cmd *cobra.Command, fsys afero.Fs, options *computesOptions, prompt string) error {
-	previous := flags.ProjectRef
-	if options.WorkspaceID != "" {
-		flags.ProjectRef = options.WorkspaceID
-	}
-	err := loadOrPromptVolcengineProjectRef(cmd.Context(), fsys, prompt)
+	workspaceID, err := (WorkspaceResolver{FS: fsys}).Resolve(cmd.Context(), options.WorkspaceID, true)
 	if err == nil {
-		options.WorkspaceID = flags.ProjectRef
+		options.WorkspaceID = workspaceID
 	}
-	flags.ProjectRef = previous
 	return err
 }
 

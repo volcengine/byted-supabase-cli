@@ -16,9 +16,6 @@ import (
 	"github.com/volcengine/byted-supabase-cli/internal/branches/list"
 	"github.com/volcengine/byted-supabase-cli/internal/branches/manage"
 	branchupdate "github.com/volcengine/byted-supabase-cli/internal/branches/update"
-	"github.com/volcengine/byted-supabase-cli/internal/errdefs"
-	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
-	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 )
 
 type branchesOptions struct {
@@ -62,15 +59,10 @@ func addBranchesWorkspaceFlags(cmd *cobra.Command, options *branchesOptions) {
 }
 
 func prepareBranchesWorkspace(cmd *cobra.Command, fsys afero.Fs, options *branchesOptions, prompt string) error {
-	previous := flags.ProjectRef
-	if options.WorkspaceID != "" {
-		flags.ProjectRef = options.WorkspaceID
-	}
-	err := loadOrPromptVolcengineProjectRef(cmd.Context(), fsys, prompt)
+	workspaceID, err := (WorkspaceResolver{FS: fsys}).Resolve(cmd.Context(), options.WorkspaceID, true)
 	if err == nil {
-		options.WorkspaceID = flags.ProjectRef
+		options.WorkspaceID = workspaceID
 	}
-	flags.ProjectRef = previous
 	return err
 }
 
@@ -132,9 +124,6 @@ func newBranchesListCommand(ctx RuntimeContext) *cobra.Command {
 			if err := validateVolcenginePageFlags(options.Limit, options.Offset, true); err != nil {
 				return err
 			}
-			if err := requireBranchesListWorkspace(ctx.FS, &options.branchesOptions); err != nil {
-				return err
-			}
 			if err := prepareBranchesWorkspace(cmd, ctx.FS, &options.branchesOptions, "Which project do you want to list branches for?"); err != nil {
 				return err
 			}
@@ -149,20 +138,6 @@ func newBranchesListCommand(ctx RuntimeContext) *cobra.Command {
 	cmd.Flags().IntVar(&options.Offset, "offset", 0, "Number of branches to skip before returning results.")
 	addBranchesWorkspaceFlags(cmd, &options.branchesOptions)
 	return cmd
-}
-
-func requireBranchesListWorkspace(fsys afero.Fs, options *branchesOptions) error {
-	if options.WorkspaceID != "" || flags.ProjectRef != "" {
-		return nil
-	}
-	linkedWorkspaceID, err := volcengine.LoadLinkedWorkspaceID(fsys)
-	if err != nil {
-		return err
-	}
-	if linkedWorkspaceID == "" {
-		return errdefs.ErrMissingWorkspaceID
-	}
-	return nil
 }
 
 func newBranchesGetCommand(ctx RuntimeContext) *cobra.Command {

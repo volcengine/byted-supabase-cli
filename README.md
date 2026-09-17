@@ -81,7 +81,7 @@ byted-supabase-cli functions new hello
 byted-supabase-cli functions deploy hello
 
 # Generate TypeScript types from the database schema
-byted-supabase-cli gen types --linked --lang typescript
+byted-supabase-cli gen types --lang typescript
 ```
 
 Explore the full command surface anytime:

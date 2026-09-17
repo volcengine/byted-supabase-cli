@@ -21,9 +21,7 @@ import (
 
 	"github.com/go-errors/errors"
 	"github.com/spf13/afero"
-	"github.com/volcengine/byted-supabase-cli/internal/errdefs"
 	"github.com/volcengine/byted-supabase-cli/internal/utils"
-	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 	"golang.org/x/term"
 )
@@ -468,78 +466,6 @@ func parseVolcengineTagKeys(values []string) ([]string, error) {
 		keys = append(keys, key)
 	}
 	return keys, nil
-}
-
-func promptVolcengineProjectRef(ctx context.Context, title string) error {
-	cfgSet, err := volcengine.LoadConfigSetFromEnv()
-	if err != nil {
-		return err
-	}
-	var workspaces []volcengine.Workspace
-	for _, region := range cfgSet.Regions {
-		result, err := volcengine.NewClient(cfgSet.ConfigForRegion(region)).ListWorkspaces(ctx, volcengine.ListWorkspacesParams{
-			Limit: volcenginePromptWorkspaceLimit,
-		})
-		if err != nil {
-			return errors.Errorf("failed to list volcengine projects in region %s: %w", region, err)
-		}
-		if result.Total > len(result.Workspaces) {
-			return errors.Errorf(
-				"too many Supabase projects found in region %s (%d). Supply --workspace-id/--project-ref directly.",
-				region,
-				result.Total,
-			)
-		}
-		workspaces = append(workspaces, result.Workspaces...)
-	}
-	if len(workspaces) == 0 {
-		return errors.New("no volcengine Supabase projects found")
-	}
-	items := make([]utils.PromptItem, len(workspaces))
-	for i, workspace := range workspaces {
-		items[i] = utils.PromptItem{
-			Summary: workspace.WorkspaceID,
-			Details: "name: " + workspace.WorkspaceName + ", region: " + workspace.RegionID,
-		}
-	}
-	choice, err := utils.PromptChoice(ctx, title, items)
-	if err != nil {
-		return err
-	}
-	flags.ProjectRef = choice.Summary
-	fmt.Fprintln(os.Stderr, "Selected project:", flags.ProjectRef)
-	return nil
-}
-
-func loadOrPromptVolcengineProjectRef(ctx context.Context, fsys afero.Fs, titles ...string) error {
-	if flags.ProjectRef != "" {
-		if err := ensureVolcengineRegion(ctx, fsys, false); err != nil {
-			return err
-		}
-		return nil
-	}
-	linkedWorkspaceID, err := volcengine.LoadLinkedWorkspaceID(fsys)
-	if err != nil {
-		return err
-	}
-	if linkedWorkspaceID != "" {
-		flags.ProjectRef = linkedWorkspaceID
-		if err := ensureVolcengineRegion(ctx, fsys, true); err != nil {
-			return err
-		}
-		return nil
-	}
-	if err := ensureVolcengineRegion(ctx, fsys, false); err != nil {
-		return err
-	}
-	if term.IsTerminal(int(os.Stdin.Fd())) {
-		title := "Select a project:"
-		if len(titles) > 0 && titles[0] != "" {
-			title = titles[0]
-		}
-		return promptVolcengineProjectRef(ctx, title)
-	}
-	return errdefs.ErrMissingWorkspaceID
 }
 
 func ensureVolcengineRegion(ctx context.Context, fsys afero.Fs, allowLinked bool) error {

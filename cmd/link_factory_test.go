@@ -68,11 +68,8 @@ func TestLinkFactoryCreatesIndependentCommands(t *testing.T) {
 	require.Equal(t, groupLocalDev, first.GroupID)
 	require.Equal(t, "link", first.Name())
 	require.NoError(t, first.Flags().Set("workspace-id", "workspace-first"))
-	require.NoError(t, first.Flags().Set("volc-project-name", "project-first"))
 	require.Equal(t, "workspace-first", first.Flag("workspace-id").Value.String())
-	require.Equal(t, "project-first", first.Flag("volc-project-name").Value.String())
 	require.Equal(t, "", second.Flag("workspace-id").Value.String())
-	require.Equal(t, "", second.Flag("volc-project-name").Value.String())
 }
 
 func TestRunSoloLinkFactoryPersistsProjectLinkWithoutKeys(t *testing.T) {
@@ -226,7 +223,7 @@ func TestManagementLinkCommandDoesNotExposeDirectFlags(t *testing.T) {
 
 	require.NotNil(t, command.Flags().Lookup("workspace-id"))
 	require.NotNil(t, command.Flags().Lookup("project-ref"))
-	require.NotNil(t, command.Flags().Lookup("volc-project-name"))
+	require.Nil(t, command.Flags().Lookup("volc-project-name"))
 	require.Nil(t, command.Flags().Lookup("supabase-url"))
 	require.Nil(t, command.Flags().Lookup("anon-key"))
 	require.Nil(t, command.Flags().Lookup("service-role-key"))
@@ -234,11 +231,25 @@ func TestManagementLinkCommandDoesNotExposeDirectFlags(t *testing.T) {
 	require.Contains(t, command.Long, "Option 1: Link using a Volcengine account")
 	require.Contains(t, command.Long, "Option 2: Link using a branch URL and API keys")
 	require.Contains(t, command.Long, "--supabase-url <url>")
+	require.Contains(t, command.Long, "A workspace ID is required.")
+	require.Contains(t, command.Long, "--workspace-id or --project-ref")
+	require.NotContains(t, command.Long, "select a workspace interactively")
 	require.Contains(t, command.Long, "The service role key is required")
 	require.Contains(t, command.Long, "The anon key is optional")
 	require.NotContains(t, command.Long, "Mode")
 	require.NotContains(t, command.Long, "mode")
 	requireNoInternalVocabulary(t, command.Long)
+}
+
+func TestManagementLinkRequiresOneWorkspaceFlag(t *testing.T) {
+	command := newManagementLinkCommand(RuntimeContext{FS: afero.NewMemMapFs(), Output: discardWriter{}, Stderr: discardWriter{}})
+
+	require.NotNil(t, command.Flag("workspace-id").Annotations)
+	require.NotNil(t, command.Flag("project-ref").Annotations)
+	require.Error(t, command.ValidateFlagGroups())
+
+	require.NoError(t, command.Flags().Set("workspace-id", "workspace-first"))
+	require.NoError(t, command.ValidateFlagGroups())
 }
 
 func requireNoInternalVocabulary(t *testing.T, text string) {

@@ -13,7 +13,6 @@ import (
 	"github.com/volcengine/byted-supabase-cli/internal/storage/ls"
 	"github.com/volcengine/byted-supabase-cli/internal/storage/mv"
 	"github.com/volcengine/byted-supabase-cli/internal/storage/rm"
-	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 	"github.com/volcengine/byted-supabase-cli/pkg/storage"
 )
@@ -55,20 +54,15 @@ func addStorageWorkspaceFlags(cmd *cobra.Command, options *storageOptions) {
 	markFlagTelemetrySafe(flags.Lookup("workspace-id"))
 }
 
-func prepareStorageWorkspace(cmd *cobra.Command, options *storageOptions, prompt string) error {
+func prepareStorageWorkspace(cmd *cobra.Command, fsys afero.Fs, options *storageOptions, prompt string) error {
 	workspace := cmd.Flags().Changed("workspace-id") || cmd.Flags().Changed("project-ref")
 	if cmd.Flags().Changed("linked") && options.Linked && workspace {
 		return errors.New("--linked cannot be combined with --workspace-id or --project-ref")
 	}
-	previous := flags.ProjectRef
-	if options.WorkspaceID != "" {
-		flags.ProjectRef = options.WorkspaceID
-	}
-	err := loadOrPromptVolcengineProjectRef(cmd.Context(), afero.NewOsFs(), prompt)
+	workspaceID, err := (WorkspaceResolver{FS: fsys}).Resolve(cmd.Context(), options.WorkspaceID, options.Linked)
 	if err == nil {
-		options.WorkspaceID = flags.ProjectRef
+		options.WorkspaceID = workspaceID
 	}
-	flags.ProjectRef = previous
 	return err
 }
 
@@ -78,7 +72,7 @@ func newStorageListCommand(ctx RuntimeContext) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "ls [path]", Example: "ls ss:///bucket/docs", Short: "List objects by path prefix", Args: cobra.MaximumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return prepareStorageWorkspace(cmd, parent, "Which project do you want to list Storage objects for?")
+			return prepareStorageWorkspace(cmd, ctx.FS, parent, "Which project do you want to list Storage objects for?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			objectPath := client.STORAGE_SCHEME + ":///"
@@ -106,7 +100,7 @@ func newStorageCopyCommand(ctx RuntimeContext) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "cp <src> <dst>", Example: "cp readme.md ss:///bucket/readme.md\ncp -r docs ss:///bucket/docs\ncp -r ss:///bucket/docs .", Short: "Copy objects from src to dst path", Args: cobra.ExactArgs(2),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return prepareStorageWorkspace(cmd, parent, "Which project do you want to copy Storage objects for?")
+			return prepareStorageWorkspace(cmd, ctx.FS, parent, "Which project do you want to copy Storage objects for?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := volcengineClientFromAuth(cmd)
@@ -136,7 +130,7 @@ func newStorageMoveCommand(ctx RuntimeContext) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "mv <src> <dst>", Short: "Move objects from src to dst path", Example: "mv -r ss:///bucket/docs ss:///bucket/www/docs", Args: cobra.ExactArgs(2),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return prepareStorageWorkspace(cmd, parent, "Which project do you want to move Storage objects for?")
+			return prepareStorageWorkspace(cmd, ctx.FS, parent, "Which project do you want to move Storage objects for?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := volcengineClientFromAuth(cmd)
@@ -158,7 +152,7 @@ func newStorageRemoveCommand(ctx RuntimeContext) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "rm <file> ...", Short: "Remove objects by file path", Example: "rm -r ss:///bucket/docs\nrm ss:///bucket/docs/example.md ss:///bucket/readme.md",
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return prepareStorageWorkspace(cmd, parent, "Which project do you want to remove Storage objects from?")
+			return prepareStorageWorkspace(cmd, ctx.FS, parent, "Which project do you want to remove Storage objects from?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := volcengineClientFromAuth(cmd)
@@ -232,7 +226,7 @@ func newStorageBucketCommand(use, short string, ctx RuntimeContext, parent *stor
 	cmd := &cobra.Command{
 		Use: use, Short: short, Args: args,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return prepareStorageWorkspace(cmd, parent, "Which project do you want to access Storage buckets for?")
+			return prepareStorageWorkspace(cmd, ctx.FS, parent, "Which project do you want to access Storage buckets for?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			api, err := newVolcengineStorageClientFactory(cmd)
@@ -274,13 +268,4 @@ func (options storageBucketOptions) writeParams(cmd *cobra.Command, bucketID str
 
 func newVolcengineStorageClientFactory(cmd *cobra.Command) (*volcengine.Client, error) {
 	return volcengineClientFromAuth(cmd)
-}
-
-func preRunVolcengineStorageFactory(cmd *cobra.Command, prompt string) error {
-	linked := cmd.Flags().Changed("linked")
-	workspace := cmd.Flags().Changed("workspace-id") || cmd.Flags().Changed("project-ref")
-	if linked && workspace {
-		return errors.New("--linked cannot be combined with --workspace-id or --project-ref")
-	}
-	return loadOrPromptVolcengineProjectRef(cmd.Context(), afero.NewOsFs(), prompt)
 }

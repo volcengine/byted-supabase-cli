@@ -41,20 +41,15 @@ func addSeedWorkspaceFlags(cmd *cobra.Command, options *seedOptions) {
 	markFlagTelemetrySafe(flags.Lookup("workspace-id"))
 }
 
-func prepareSeedWorkspace(cmd *cobra.Command, options *seedOptions) error {
+func prepareSeedWorkspace(cmd *cobra.Command, fsys afero.Fs, options *seedOptions) error {
 	workspace := cmd.Flags().Changed("workspace-id") || cmd.Flags().Changed("project-ref")
 	if cmd.Flags().Changed("linked") && options.Linked && workspace {
 		return errors.New("--linked cannot be combined with --workspace-id or --project-ref")
 	}
-	previous := flags.ProjectRef
-	if options.WorkspaceID != "" {
-		flags.ProjectRef = options.WorkspaceID
-	}
-	err := loadOrPromptVolcengineProjectRef(cmd.Context(), afero.NewOsFs(), "Which project do you want to seed Storage buckets for?")
+	workspaceID, err := (WorkspaceResolver{FS: fsys}).Resolve(cmd.Context(), options.WorkspaceID, options.Linked)
 	if err == nil {
-		options.WorkspaceID = flags.ProjectRef
+		options.WorkspaceID = workspaceID
 	}
-	flags.ProjectRef = previous
 	return err
 }
 
@@ -66,7 +61,7 @@ func newSeedBucketsCommand(ctx RuntimeContext) *cobra.Command {
 		Short: "Seed buckets declared in [storage.buckets]",
 		Args:  cobra.NoArgs,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return prepareSeedWorkspace(cmd, options)
+			return prepareSeedWorkspace(cmd, ctx.FS, options)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fsys := afero.NewOsFs()

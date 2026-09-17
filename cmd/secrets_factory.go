@@ -10,7 +10,6 @@ import (
 	"github.com/volcengine/byted-supabase-cli/internal/secrets/list"
 	"github.com/volcengine/byted-supabase-cli/internal/secrets/set"
 	"github.com/volcengine/byted-supabase-cli/internal/secrets/unset"
-	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 )
 
 type secretsOptions struct {
@@ -46,20 +45,15 @@ func addSecretsWorkspaceFlags(cmd *cobra.Command, options *secretsOptions) {
 	markFlagTelemetrySafe(cmd.Flags().Lookup("workspace-id"))
 }
 
-func prepareSecretsWorkspace(cmd *cobra.Command, options *secretsOptions, prompt string) error {
+func prepareSecretsWorkspace(cmd *cobra.Command, fsys afero.Fs, options *secretsOptions, prompt string) error {
 	workspace := cmd.Flags().Changed("workspace-id") || cmd.Flags().Changed("project-ref")
 	if cmd.Flags().Changed("linked") && options.Linked && workspace {
 		return errors.New("--linked cannot be combined with --workspace-id or --project-ref")
 	}
-	previous := flags.ProjectRef
-	if options.WorkspaceID != "" {
-		flags.ProjectRef = options.WorkspaceID
-	}
-	err := loadOrPromptVolcengineProjectRef(cmd.Context(), afero.NewOsFs(), prompt)
+	workspaceID, err := (WorkspaceResolver{FS: fsys}).Resolve(cmd.Context(), options.WorkspaceID, options.Linked)
 	if err == nil {
-		options.WorkspaceID = flags.ProjectRef
+		options.WorkspaceID = workspaceID
 	}
-	flags.ProjectRef = previous
 	return err
 }
 
@@ -70,7 +64,7 @@ func newSecretsListCommand(ctx RuntimeContext) *cobra.Command {
 		Short: "List all secrets on Supabase",
 		Long:  "List all secrets in the linked project.",
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return prepareSecretsWorkspace(cmd, &options, "Which project do you want to list secrets for?")
+			return prepareSecretsWorkspace(cmd, ctx.FS, &options, "Which project do you want to list secrets for?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := volcengineClientFromAuth(cmd)
@@ -94,7 +88,7 @@ func newSecretsSetCommand(ctx RuntimeContext) *cobra.Command {
 		Short: "Set a secret(s) on Supabase",
 		Long:  "Set a secret(s) to the linked Supabase project.",
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return prepareSecretsWorkspace(cmd, &options, "Which project do you want to set secrets for?")
+			return prepareSecretsWorkspace(cmd, ctx.FS, &options, "Which project do you want to set secrets for?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := volcengineClientFromAuth(cmd)
@@ -118,7 +112,7 @@ func newSecretsUnsetCommand(ctx RuntimeContext) *cobra.Command {
 		Short: "Unset a secret(s) on Supabase",
 		Long:  "Unset a secret(s) from the linked Supabase project.",
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return prepareSecretsWorkspace(cmd, &options, "Which project do you want to unset secrets from?")
+			return prepareSecretsWorkspace(cmd, ctx.FS, &options, "Which project do you want to unset secrets from?")
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := volcengineClientFromAuth(cmd)

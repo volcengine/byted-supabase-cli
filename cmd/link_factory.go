@@ -18,13 +18,11 @@ import (
 	"github.com/go-errors/errors"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/volcengine/byted-supabase-cli/internal/link"
 	soloconfig "github.com/volcengine/byted-supabase-cli/internal/solo"
 	"github.com/volcengine/byted-supabase-cli/internal/utils"
 	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
-	"golang.org/x/term"
 )
 
 type linkOptions struct {
@@ -50,7 +48,7 @@ func linkIntentFromArgs() linkIntent {
 	hasDirect := false
 	for _, arg := range args {
 		switch arg {
-		case "--workspace-id", "--project-ref", "--volc-project-name":
+		case "--workspace-id", "--project-ref":
 			hasManagement = true
 		case "--supabase-url", "--anon-key", "--service-role-key":
 			hasDirect = true
@@ -93,7 +91,7 @@ Option 1: Link using a Volcengine account
     # Link the project
     byted-supabase-cli link --workspace-id <workspace-id>
 
-  Omit --workspace-id to select a workspace interactively.
+  A workspace ID is required. Use --workspace-id or --project-ref.
 
 Option 2: Link using a branch URL and API keys
   Use this option if someone else created the Supabase branch and provided you
@@ -150,7 +148,7 @@ To remove the link, run:
 	markFlagTelemetrySafe(cmd.Flags().Lookup("project-ref"))
 	cmd.Flags().StringVar(&options.WorkspaceID, "workspace-id", "", "Workspace ID of the Volcengine Supabase project.")
 	markFlagTelemetrySafe(cmd.Flags().Lookup("workspace-id"))
-	cmd.Flags().StringVar(&options.ProjectName, "volc-project-name", "", "Volcengine ProjectName to filter workspaces during interactive link.")
+	cmd.MarkFlagsOneRequired("workspace-id", "project-ref")
 	cmd.MarkFlagsMutuallyExclusive("workspace-id", "project-ref")
 	return cmd
 }
@@ -449,46 +447,5 @@ func parseVolcengineWorkspaceIDFactory(ctx context.Context, client *volcengine.C
 	if options.WorkspaceID != "" {
 		return nil
 	}
-	if options.WorkspaceID = viper.GetString("PROJECT_ID"); options.WorkspaceID != "" {
-		return nil
-	}
-	if !term.IsTerminal(int(os.Stdin.Fd())) {
-		return errors.New("missing workspace id. Supply --workspace-id or --project-ref.")
-	}
-	result, err := client.ListWorkspaces(ctx, volcengine.ListWorkspacesParams{
-		ProjectName: options.ProjectName,
-		Limit:       volcenginePromptWorkspaceLimit,
-	})
-	if err != nil {
-		return errors.Errorf("failed to list volcengine workspaces: %w", err)
-	}
-	if len(result.Workspaces) == 0 {
-		return errors.New("no Supabase workspaces found")
-	}
-	if result.Total > len(result.Workspaces) {
-		return errors.Errorf(
-			"too many Supabase workspaces found in this region (%d). Supply --workspace-id/--project-ref directly, or narrow the selection with --volc-project-name.",
-			result.Total,
-		)
-	}
-	items := make([]utils.PromptItem, len(result.Workspaces))
-	for i, workspace := range result.Workspaces {
-		items[i] = utils.PromptItem{
-			Summary: workspace.WorkspaceID,
-			Details: fmt.Sprintf(
-				"name: %s, project: %s, region: %s, status: %s",
-				workspace.WorkspaceName,
-				workspace.ProjectName,
-				workspace.RegionID,
-				workspace.WorkspaceStatus,
-			),
-		}
-	}
-	choice, err := utils.PromptChoice(ctx, "Select a workspace:", items)
-	if err != nil {
-		return err
-	}
-	options.WorkspaceID = choice.Summary
-	fmt.Fprintln(os.Stderr, "Selected workspace:", options.WorkspaceID)
-	return nil
+	return errors.New("missing workspace id. Supply --workspace-id or --project-ref.")
 }

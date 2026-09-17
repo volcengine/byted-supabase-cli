@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/volcengine/byted-supabase-cli/internal/restrictions/manage"
 	"github.com/volcengine/byted-supabase-cli/internal/utils"
-	"github.com/volcengine/byted-supabase-cli/internal/utils/flags"
 	"github.com/volcengine/byted-supabase-cli/internal/volcengine"
 )
 
@@ -49,15 +48,10 @@ func addNetworkRestrictionsWorkspaceFlags(cmd *cobra.Command, options *networkRe
 }
 
 func prepareNetworkRestrictionsWorkspace(cmd *cobra.Command, fsys afero.Fs, options *networkRestrictionsOptions, prompt string) error {
-	previous := flags.ProjectRef
-	if options.WorkspaceID != "" {
-		flags.ProjectRef = options.WorkspaceID
-	}
-	err := loadOrPromptVolcengineProjectRef(cmd.Context(), fsys, prompt)
+	workspaceID, err := (WorkspaceResolver{FS: fsys}).Resolve(cmd.Context(), options.WorkspaceID, true)
 	if err == nil {
-		options.WorkspaceID = flags.ProjectRef
+		options.WorkspaceID = workspaceID
 	}
-	flags.ProjectRef = previous
 	return err
 }
 
