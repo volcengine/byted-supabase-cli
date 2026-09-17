@@ -916,7 +916,7 @@ func remoteAuthorize(ctx context.Context, input io.Reader, output io.Writer, oau
 		return authCode, redirectURI, nil
 	}
 
-	fmt.Fprintln(output, "After completing login, enter the authorization code shown in the browser:")
+	fmt.Fprintln(output, "\n After completing login, enter the authorization code shown in the browser:")
 	fmt.Fprint(output, "Authorization code: ")
 	rawInput, err := bufio.NewReader(input).ReadString('\n')
 	if err != nil {
