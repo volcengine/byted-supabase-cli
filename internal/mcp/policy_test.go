@@ -172,7 +172,7 @@ func TestPolicyEnabledFeatures(t *testing.T) {
 	// The default set is sorted and includes all official groups (including storage).
 	def := newPolicy(Options{}).enabledFeatures()
 	assert.Equal(t, []string{
-		featureAccount, featureAuth, featureBranching, featureCompute, featureDatabase,
+		featureAccount, featureAIGateway, featureAuth, featureBranching, featureCompute, featureDatabase,
 		featureDevelopment, featureFunctions, featurePages, featureStorage,
 	}, def)
 	assert.Contains(t, def, featureStorage)
