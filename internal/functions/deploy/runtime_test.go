@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"path"
 	"path/filepath"
 	"testing"
 
@@ -91,6 +92,28 @@ func TestCollectVolcengineFunctionFilesIncludesSharedFiles(t *testing.T) {
 		"supabase/functions/_shared/shared.ts": `import { nestedValue } from "./nested.ts";`,
 		"supabase/functions/_shared/nested.ts": `export const nestedValue = "ok";`,
 	}, functionFilesByName(files))
+}
+
+func TestVolcengineFunctionPathsNormalizeWindowsSeparators(t *testing.T) {
+	original := utils.CurrentDirAbs
+	t.Cleanup(func() { utils.CurrentDirAbs = original })
+	utils.CurrentDirAbs = `C:\work\project`
+
+	require.Equal(t,
+		"supabase/functions/hello/index.ts",
+		volcengineFunctionProjectPath("hello", `C:\work\project\supabase\functions\hello\index.ts`))
+	require.Equal(t,
+		"supabase/functions/hello/deno.json",
+		volcengineFunctionProjectPath("hello", `supabase\functions\hello\deno.json`))
+	require.Equal(t,
+		"supabase/functions/_shared/shared.ts",
+		pathFromWindowsImport(`supabase/functions/hello/index.ts`, `../_shared/shared.ts`))
+}
+
+func pathFromWindowsImport(current, module string) string {
+	current = normalizeVolcenginePath(current)
+	module = normalizeVolcenginePath(module)
+	return path.Clean(path.Join(path.Dir(current), module))
 }
 
 func functionFilesByName(files []gateway.File) map[string]string {

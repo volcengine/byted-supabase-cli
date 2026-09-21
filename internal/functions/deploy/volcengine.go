@@ -146,12 +146,21 @@ func volcengineFunctionMetadata(slug, runtime string, noVerifyJWT *bool, importM
 }
 
 func volcengineFunctionProjectPath(slug, filePath string) string {
-	filePath = filepath.ToSlash(filepath.Clean(filePath))
-	if !filepath.IsAbs(filePath) && strings.HasPrefix(filePath, utils.FunctionsDir+"/") {
+	filePath = normalizeVolcenginePath(filePath)
+	if !isAbsoluteVolcenginePath(filePath) && strings.HasPrefix(filePath, normalizeVolcenginePath(utils.FunctionsDir)+"/") {
 		return filePath
 	}
 	relative := trimFunctionPath(slug, filePath)
-	return path.Join(filepath.ToSlash(utils.FunctionsDir), slug, relative)
+	return path.Join(normalizeVolcenginePath(utils.FunctionsDir), slug, relative)
+}
+
+func normalizeVolcenginePath(filePath string) string {
+	filePath = strings.ReplaceAll(filePath, `\`, "/")
+	return path.Clean(filePath)
+}
+
+func isAbsoluteVolcenginePath(filePath string) bool {
+	return path.IsAbs(filePath) || (len(filePath) >= 3 && filePath[1] == ':' && filePath[2] == '/')
 }
 
 func isVolcengineFunctionDisabled(slug string) bool {
@@ -161,7 +170,7 @@ func isVolcengineFunctionDisabled(slug string) bool {
 
 func collectVolcengineFunctionFiles(slug, importMap string, fsys afero.Fs) ([]gateway.File, error) {
 	files := make([]gateway.File, 0)
-	entrypoint := path.Join(filepath.ToSlash(utils.FunctionsDir), slug, "index.ts")
+	entrypoint := path.Join(normalizeVolcenginePath(utils.FunctionsDir), slug, "index.ts")
 	if functionConfig, ok := utils.Config.Functions[slug]; ok && functionConfig.Entrypoint != "" {
 		entrypoint = volcengineFunctionProjectPath(slug, functionConfig.Entrypoint)
 	}
@@ -259,8 +268,8 @@ func appendVolcengineFunctionFile(fsys afero.Fs, files *[]gateway.File, filePath
 	if err != nil {
 		return errors.Errorf("failed to read function file %s: %w", filePath, err)
 	}
-	name = strings.TrimPrefix(filepath.ToSlash(name), "./")
-	if name == "" || strings.HasPrefix(name, "../") || path.IsAbs(name) {
+	name = strings.TrimPrefix(normalizeVolcenginePath(name), "./")
+	if name == "" || strings.HasPrefix(name, "../") || isAbsoluteVolcenginePath(name) {
 		return errors.Errorf("invalid function file path %q", name)
 	}
 	*files = append(*files, gateway.File{Name: name, Content: string(content)})
@@ -277,15 +286,15 @@ func hasVolcengineFile(files []gateway.File, name string) bool {
 }
 
 func trimFunctionPath(slug, filePath string) string {
-	filePath = filepath.ToSlash(filepath.Clean(filePath))
+	filePath = normalizeVolcenginePath(filePath)
 	filePath = strings.TrimPrefix(filePath, "./")
 	candidates := []string{
-		path.Join(utils.FunctionsDir, slug),
+		path.Join(normalizeVolcenginePath(utils.FunctionsDir), slug),
 		path.Join("functions", slug),
 		path.Join("supabase", "functions", slug),
 	}
 	if utils.CurrentDirAbs != "" {
-		currentDir := filepath.ToSlash(filepath.Clean(utils.CurrentDirAbs))
+		currentDir := normalizeVolcenginePath(utils.CurrentDirAbs)
 		candidates = append(candidates,
 			path.Join(currentDir, utils.FunctionsDir, slug),
 			path.Join(currentDir, "functions", slug),
