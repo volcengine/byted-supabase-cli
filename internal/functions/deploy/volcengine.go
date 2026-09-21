@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/go-errors/errors"
@@ -27,6 +28,8 @@ const (
 	RuntimePython310    = "native-python3.10/v1"
 	RuntimePython312    = "native-python3.12/v1"
 )
+
+var importPathPattern = regexp.MustCompile(`(?i)(?:import|export)\s+(?:type\s+)?(?:{[^{}]+}|.*?)\s*(?:from)?\s*['"](.*?)['"]|import\(\s*['"](.*?)['"]\)`)
 
 // NativeRuntimes maps each supported native Edge Function runtime to its default
 // entrypoint file. Single source of truth for "which native runtimes exist and
@@ -121,19 +124,16 @@ func volcengineFunctionMetadata(slug, runtime string, noVerifyJWT *bool, importM
 	}
 	entrypoint := functionConfig.Entrypoint
 	if entrypoint == "" {
-		entrypoint = DefaultVolcengineEntrypoint(runtime)
+		entrypoint = filepath.Join(utils.FunctionsDir, slug, DefaultVolcengineEntrypoint(runtime))
 	} else {
-		entrypoint = trimFunctionPath(slug, filepath.ToSlash(entrypoint))
+		entrypoint = volcengineFunctionProjectPath(slug, entrypoint)
 	}
 	importMap := importMapPath
 	if importMap == "" {
 		importMap = functionConfig.ImportMap
 	}
 	if importMap != "" {
-		if !filepath.IsAbs(importMap) {
-			importMap = filepath.Join(utils.CurrentDirAbs, importMap)
-		}
-		importMap = trimFunctionPath(slug, filepath.ToSlash(importMap))
+		importMap = volcengineFunctionProjectPath(slug, importMap)
 	}
 	verifyJWT := true
 	if hasConfig {
@@ -145,28 +145,27 @@ func volcengineFunctionMetadata(slug, runtime string, noVerifyJWT *bool, importM
 	return filepath.ToSlash(entrypoint), filepath.ToSlash(importMap), verifyJWT, nil
 }
 
+func volcengineFunctionProjectPath(slug, filePath string) string {
+	filePath = filepath.ToSlash(filepath.Clean(filePath))
+	if !filepath.IsAbs(filePath) && strings.HasPrefix(filePath, utils.FunctionsDir+"/") {
+		return filePath
+	}
+	relative := trimFunctionPath(slug, filePath)
+	return path.Join(filepath.ToSlash(utils.FunctionsDir), slug, relative)
+}
+
 func isVolcengineFunctionDisabled(slug string) bool {
 	functionConfig, ok := utils.Config.Functions[slug]
 	return ok && !functionConfig.Enabled
 }
 
 func collectVolcengineFunctionFiles(slug, importMap string, fsys afero.Fs) ([]gateway.File, error) {
-	functionDir := filepath.Join(utils.FunctionsDir, slug)
 	files := make([]gateway.File, 0)
-	err := afero.Walk(fsys, functionDir, func(filePath string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			return nil
-		}
-		rel, err := filepath.Rel(functionDir, filePath)
-		if err != nil {
-			return err
-		}
-		return appendVolcengineFunctionFile(fsys, &files, filePath, filepath.ToSlash(rel))
-	})
-	if err != nil {
+	entrypoint := path.Join(filepath.ToSlash(utils.FunctionsDir), slug, "index.ts")
+	if functionConfig, ok := utils.Config.Functions[slug]; ok && functionConfig.Entrypoint != "" {
+		entrypoint = volcengineFunctionProjectPath(slug, functionConfig.Entrypoint)
+	}
+	if err := walkVolcengineImportPaths(fsys, entrypoint, &files); err != nil {
 		return nil, errors.Errorf("failed to collect function files: %w", err)
 	}
 	if importMap != "" && !hasVolcengineFile(files, importMap) {
@@ -178,6 +177,57 @@ func collectVolcengineFunctionFiles(slug, importMap string, fsys afero.Fs) ([]ga
 		}
 	}
 	return files, nil
+}
+
+func walkVolcengineImportPaths(fsys afero.Fs, entrypoint string, files *[]gateway.File) error {
+	seen := make(map[string]struct{})
+	queue := []string{filepath.ToSlash(filepath.Clean(entrypoint))}
+	for len(queue) > 0 {
+		current := queue[len(queue)-1]
+		queue = queue[:len(queue)-1]
+		if _, ok := seen[current]; ok {
+			continue
+		}
+		seen[current] = struct{}{}
+
+		filePath := filepath.FromSlash(current)
+		fileName := current
+		content, err := afero.ReadFile(fsys, filePath)
+		if errors.Is(err, os.ErrNotExist) {
+			fmt.Fprintln(os.Stderr, "WARN:", err)
+			continue
+		}
+		if err != nil {
+			return errors.Errorf("failed to read function file %s: %w", current, err)
+		}
+		if !hasVolcengineFile(*files, fileName) {
+			*files = append(*files, gateway.File{Name: fileName, Content: string(content)})
+		}
+
+		for _, matches := range importPathPattern.FindAllStringSubmatch(string(content), -1) {
+			if len(matches) < 3 {
+				continue
+			}
+			module := matches[1]
+			if module == "" {
+				module = matches[2]
+			}
+			module = strings.TrimSpace(module)
+			if path.Ext(module) == "" || !isVolcengineRelativeImport(module) {
+				continue
+			}
+			resolved := path.Clean(path.Join(path.Dir(current), module))
+			if path.IsAbs(resolved) || strings.HasPrefix(resolved, "../") {
+				continue
+			}
+			queue = append(queue, resolved)
+		}
+	}
+	return nil
+}
+
+func isVolcengineRelativeImport(module string) bool {
+	return strings.HasPrefix(module, "./") || strings.HasPrefix(module, "../")
 }
 
 func getVolcengineFunctionSlugs(fsys afero.Fs) ([]string, error) {

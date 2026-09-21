@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
+	"github.com/volcengine/byted-supabase-cli/internal/functions/gateway"
 	"github.com/volcengine/byted-supabase-cli/internal/utils"
 	"github.com/volcengine/byted-supabase-cli/pkg/config"
 )
@@ -63,4 +64,39 @@ func TestNormalizeVolcengineRuntimeDetectsPythonWhenConfigMissing(t *testing.T) 
 func TestDefaultVolcengineEntrypoint(t *testing.T) {
 	require.Equal(t, "index.ts", DefaultVolcengineEntrypoint(RuntimeNativeNode20))
 	require.Equal(t, "app.py", DefaultVolcengineEntrypoint(RuntimePython312))
+}
+
+func TestCollectVolcengineFunctionFilesIncludesSharedFiles(t *testing.T) {
+	fsys := afero.NewMemMapFs()
+	require.NoError(t, afero.WriteFile(fsys,
+		filepath.Join(utils.FunctionsDir, "hello", "index.ts"),
+		[]byte(`import { sharedValue } from "../_shared/shared.ts";`), 0644))
+	require.NoError(t, afero.WriteFile(fsys,
+		filepath.Join(utils.FunctionsDir, "_shared", "shared.ts"),
+		[]byte(`import { nestedValue } from "./nested.ts";`), 0644))
+	require.NoError(t, afero.WriteFile(fsys,
+		filepath.Join(utils.FunctionsDir, "_shared", "nested.ts"),
+		[]byte(`export const nestedValue = "ok";`), 0644))
+	require.NoError(t, afero.WriteFile(fsys,
+		filepath.Join(utils.FunctionsDir, "_shared", "unused.ts"),
+		[]byte(`export const unusedValue = "unused";`), 0644))
+	require.NoError(t, afero.WriteFile(fsys,
+		filepath.Join(utils.FunctionsDir, "other", "index.ts"),
+		[]byte(`Deno.serve(() => new Response("other"));`), 0644))
+
+	files, err := collectVolcengineFunctionFiles("hello", "", fsys)
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{
+		"supabase/functions/hello/index.ts":    `import { sharedValue } from "../_shared/shared.ts";`,
+		"supabase/functions/_shared/shared.ts": `import { nestedValue } from "./nested.ts";`,
+		"supabase/functions/_shared/nested.ts": `export const nestedValue = "ok";`,
+	}, functionFilesByName(files))
+}
+
+func functionFilesByName(files []gateway.File) map[string]string {
+	result := make(map[string]string, len(files))
+	for _, file := range files {
+		result[file.Name] = file.Content
+	}
+	return result
 }
