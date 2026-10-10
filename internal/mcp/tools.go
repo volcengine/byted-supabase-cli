@@ -38,6 +38,7 @@ func allSpecs() []toolSpec {
 	specs = append(specs, pagesTools()...)
 	specs = append(specs, authTools()...)
 	specs = append(specs, aiGatewayTools()...)
+	specs = append(specs, sandboxTools()...)
 
 	avail := availableFeatures()
 	kept := specs[:0]

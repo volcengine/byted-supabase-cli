@@ -26,6 +26,7 @@ const (
 	featureCompute     = "compute"
 	featurePages       = "pages"
 	featureAIGateway   = "ai-gateway"
+	featureSandbox     = "sandbox"
 	// featureAuth is a fork-specific group (no upstream equivalent) for Supabase Auth
 	// configuration: general config, hooks, and third-party providers.
 	featureAuth = "auth"
@@ -43,6 +44,7 @@ var officialFeatures = map[string]bool{
 	featurePages:       true,
 	featureAuth:        true,
 	featureAIGateway:   true,
+	featureSandbox:     true,
 }
 
 func availableFeatures() map[string]bool {

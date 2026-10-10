@@ -173,7 +173,7 @@ func TestPolicyEnabledFeatures(t *testing.T) {
 	def := newPolicy(Options{}).enabledFeatures()
 	assert.Equal(t, []string{
 		featureAccount, featureAIGateway, featureAuth, featureBranching, featureCompute, featureDatabase,
-		featureDevelopment, featureFunctions, featurePages, featureStorage,
+		featureDevelopment, featureFunctions, featurePages, featureSandbox, featureStorage,
 	}, def)
 	assert.Contains(t, def, featureStorage)
 

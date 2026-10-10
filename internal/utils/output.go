@@ -65,6 +65,14 @@ func EncodeOutput(format string, w io.Writer, value any) error {
 			return errors.Errorf("failed to output json: %w", err)
 		}
 
+	case OutputPretty:
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+
+		if err := enc.Encode(value); err != nil {
+			return errors.Errorf("failed to output pretty JSON: %w", err)
+		}
+
 	case OutputYaml:
 		enc := yaml.NewEncoder(w)
 		if err := enc.Encode(value); err != nil {

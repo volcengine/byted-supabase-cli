@@ -9,6 +9,8 @@ func managementAPICommandGroup() CommandGroup {
 		Factories: []CommandFactory{
 			newAuthCommand,
 			newAIGatewayCommand,
+			newSandboxCommand,
+			newTemplatesCommand,
 			newBranchesCommandFactory,
 			newComputesCommand,
 			newEndpointsCommand,
