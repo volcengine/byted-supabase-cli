@@ -37,7 +37,7 @@ byted-supabase-cli templates list --workspace-id "$WORKSPACE_ID" --branch-id "$B
 |---|---|
 | `base` | 通用 Linux、Python、Node.js、Git、命令执行 |
 | `code-interpreter` | Python 数据处理、Jupyter，结构化执行结果 |
-| `codex` / `opencode` | 预装对应 Coding Agent CLI；平台把 AI Gateway 配置注入沙箱（opencode 为 `OPENCODE_CONFIG_CONTENT`） |
+| `codex` / `opencode` | 预装对应 Coding Agent CLI；平台把 AI Gateway 配置注入沙箱（opencode 为 `OPENCODE_CONFIG_CONTENT`，用法见第 10 节）。`opencode` 模板为 Debian、用户 `user`、免密 sudo、2 核 4GB，自带 python3 和 node，没有 ripgrep、Office 库、LibreOffice 和浏览器 |
 
 模板不能自定义，额外依赖只能运行时安装。
 
@@ -223,8 +223,28 @@ curl -X DELETE "$SUPABASE_URL/sandbox/v1/sandboxes/$SANDBOX_ID" \
 - **网络**：默认可以访问公网。apt 已配 volces 镜像；pip 未配源，推荐 `https://mirrors.volces.com/pypi/simple/`。
 - **端口预览**：`sandbox port url` 或 `sandbox.getHost(port)` 返回 `{SUPABASE_URL}/sandbox/v1/proxy/{sandbox_id}/{port}/`，末尾斜杠不能省（页面里的相对资源靠它）。默认（`allowPublicTraffic` 为 true）持有地址即可访问、CORS 全开，所以地址只给沙箱归属者；创建时关掉 `allowPublicTraffic` 后，请求要带 `e2b-traffic-access-token`。30 秒无响应返回 502；WebSocket 需要网关 6.9.1 及以上。
 - **回收判断**：kill 之后几分钟内 `getInfo` 可能仍显示 running，判断沙箱是否还在用 `list` 或 `connect`。
+- **复用已有沙箱**：保存 `sandboxId`，下次先 `Sandbox.connect`（传 `timeoutMs`，否则 SDK 默认把寿命改成 5 分钟）；返回 403 / 404 / 409 / 410 / 502 或 `SandboxNotFoundError` 时当作已回收，新建一个并从 Storage 恢复状态。
+- **分支休眠**：有运行中的沙箱时分支不会自动休眠。
 
-## 10. 常见问题
+## 10. 在沙箱里运行 opencode
+
+`opencode` 模板里，平台通过 `OPENCODE_CONFIG_CONTENT` 注入一个指向 AI Gateway 的 provider（id 为 `supabase-ai-gateway`），认证引用 `SANDBOX_JWT`，用的是沙箱归属用户的 AI 额度。
+
+```bash
+cd ~/workspace
+PWD=$HOME/workspace OPENCODE_DISABLE_AUTOUPDATE=1 \
+  opencode run --auto --format json [--session <id>] [--model supabase-ai-gateway/<model>] -- "<prompt>"
+```
+
+- **工作目录看 `$PWD`**：opencode 按环境变量 `PWD` 认项目目录。envd 启动的进程继承 `PWD=/home/user`，只设子进程 cwd 不够，会在 `~` 下干活、找不到项目里的 skill。
+- **换模型**：注入的配置只声明了默认模型，直接 `--model` 指定其他模型会报 `UnknownError`。先解析 `OPENCODE_CONFIG_CONTENT`，把模型加到 `provider["supabase-ai-gateway"].models`（`{"<model>": {"name": "<model>"}}`），再把改过的 JSON 作为同名环境变量传给 opencode。
+- **新实例**：沙箱服务每 10 分钟从 AI Gateway 同步一次模型列表，实例创建后约 10 分钟内沙箱里可能没有 `OPENCODE_CONFIG_CONTENT`。
+- **事件流**：`--format json` 时 stdout 每行一个 JSON：`text`（整段文本，`part.text`）、`tool_use`（调用和结果合在一条，工具结束时才输出；`part.tool`、`part.callID`、`part.state`）、`step_finish`（`part.tokens`、`part.cost`）、`error`、`step_start`；`reasoning` 只在加 `--thinking` 时出现。会话 id 在顶层 `sessionID`。
+- **续聊**：会话绑定工作目录，必须在同一目录下 `--session <id>`。换沙箱续聊时，把 `~/.local/share/opencode/opencode.db`、`opencode.db-wal`、`opencode.db-shm` 存到 Storage，新沙箱里解压回原位置、在同一目录下继续。
+- **AGENTS.md 与 Skills**：opencode 读取工作目录下的 `AGENTS.md`，以及 `<工作目录>/.opencode/skills/<name>/SKILL.md`（frontmatter 要有 `name`、`description`）。skill 工具依赖 ripgrep，先 `sudo apt-get install -y ripgrep`。
+- **卡住与取消**：AI Gateway 不可达时 opencode 每 30 秒重试、不退出也不输出，要设整体超时。opencode 的 bash 工具让命令跑在独立进程组里，取消时只杀 opencode 的进程组会漏掉这些子进程，要逐个杀。
+
+## 11. 常见问题
 
 | 现象 | 处理 |
 |---|---|
@@ -235,6 +255,8 @@ curl -X DELETE "$SUPABASE_URL/sandbox/v1/sandboxes/$SANDBOX_ID" \
 | 创建返回 429 | 每用户每日或实例并发配额用完，`sandbox quota` 查看 |
 | 创建返回 501 | 当前环境不支持该参数（如 `--allow-internet=false`），看 `sandbox create --help` |
 | 后台命令一分钟后消失 | 没传 `timeoutMs: 0` |
+| opencode `--model` 报 `UnknownError` | 模型没在 `OPENCODE_CONFIG_CONTENT` 里声明，见第 10 节 |
+| opencode 找不到项目里的 skill、文件写到了 `~` | 没设环境变量 `PWD`，见第 10 节 |
 | CLI 文件 / 进程操作返回 401 | `envdAccessToken` 不是本次 `connect` 拿到的，或 Sandbox ID 不一致 |
 | code-interpreter 返回 404 / 502 | 模板不是 `code-interpreter`，或没装对应 SDK |
 | 端口地址返回 401 | 沙箱关了 `allowPublicTraffic` 但请求没带 traffic token |
