@@ -255,9 +255,12 @@ interface Undo {
   descriptor?: PropertyDescriptor
 }
 
+// Reached through globalThis so the package builds without Node type definitions: it also runs in
+// browsers and Deno, and `npm install <dir>` does not install @types/node for the build step.
 function readEnv(name: string): string | undefined {
   try {
-    return typeof process !== 'undefined' && process.env ? process.env[name] : undefined
+    const proc = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+    return proc?.env?.[name]
   } catch {
     return undefined
   }
@@ -437,8 +440,40 @@ function patchControlPlane(patch: GatewayPatch, SandboxClass: any): void {
   // Statics live on the base class (SandboxApi), so read through the prototype chain but shadow on
   // SandboxClass itself; restore then simply deletes the shadow.
   const original: Record<string, any> = {}
-  for (const name of ['create', 'connect', 'list', 'kill', 'getInfo', 'getMetrics', 'setTimeout']) {
+  // **每一个静态入口点都必须在这里出现。** 漏掉的那个会自己新建一个没有连接设置的
+  // ApiClient，于是静默打向 e2b 官方云，用户拿到的是一句"请去 e2b.dev 拿 API key" ——
+  // 指向一个完全错误的方向。`betaPause` 就这么漏过：一期 pause 路由关着没人踩到，
+  // e2b 底座一开放就炸（3 条 e2e 红在 AuthenticationError）。
+  //
+  // 按参数形状分三组包装，见下面三段：
+  //   (id, opts)        —— 绝大多数
+  //   (opts)            —— list / listSnapshots，返回 paginator、同步构造
+  //   (id, x, opts)     —— setTimeout / updateNetwork
+  for (const name of [
+    'create',
+    'connect',
+    'list',
+    'kill',
+    'getInfo',
+    'getFullInfo',
+    'getMetrics',
+    'setTimeout',
+    'pause',
+    'betaPause',
+    'createSnapshot',
+    'deleteSnapshot',
+    'listSnapshots',
+    'updateNetwork',
+    'fork',
+  ]) {
     original[name] = SandboxClass[name]
+  }
+  // 只包装这个 SDK 版本里**真有**的方法（与 Python 侧 `if original is not None` 对齐）。
+  // 无条件包装会把「不存在」变成「存在但一调就 TypeError」，还会骗过调用方的
+  // `typeof Sandbox.x === 'function'` 特性探测 —— betaPause / getFullInfo 已标 deprecated，
+  // 迟早会从 peer 范围内的某个小版本里消失。create / connect 是整个补丁的前提，不走这道判断。
+  const setIfPresent = (name: string, value: unknown): void => {
+    if (typeof original[name] === 'function') patch.set(SandboxClass, name, value)
   }
 
   patch.set(SandboxClass, 'create', function create(
@@ -464,13 +499,26 @@ function patchControlPlane(patch: GatewayPatch, SandboxClass: any): void {
     return patch.typed(() => original.connect.call(this, sandboxId, patch.withOptions(opts)))
   })
 
-  patch.set(SandboxClass, 'list', function list(this: any, opts?: Record<string, any>) {
-    // Sync: it builds a paginator, it does not perform the request.
-    return original.list.call(this, patch.withOptions(opts))
-  })
+  // (opts) 形状：同步构造 paginator，不发请求。
+  for (const name of ['list', 'listSnapshots']) {
+    setIfPresent(name, function listing(this: any, opts?: Record<string, any>) {
+      return original[name].call(this, patch.withOptions(opts))
+    })
+  }
 
-  for (const name of ['kill', 'getInfo', 'getMetrics']) {
-    patch.set(SandboxClass, name, function wrapped(
+  // (id, opts) 形状：第一个参数是句柄，第二个是连接设置。
+  for (const name of [
+    'kill',
+    'getInfo',
+    'getFullInfo',
+    'getMetrics',
+    'pause',
+    'betaPause',
+    'createSnapshot',
+    'deleteSnapshot',
+    'fork',
+  ]) {
+    setIfPresent(name, function wrapped(
       this: any,
       sandboxId: string,
       opts?: Record<string, any>
@@ -479,7 +527,7 @@ function patchControlPlane(patch: GatewayPatch, SandboxClass: any): void {
     })
   }
 
-  patch.set(SandboxClass, 'setTimeout', function setTimeoutWrapped(
+  setIfPresent('setTimeout', function setTimeoutWrapped(
     this: any,
     sandboxId: string,
     timeoutMs: number,
@@ -487,6 +535,18 @@ function patchControlPlane(patch: GatewayPatch, SandboxClass: any): void {
   ) {
     return patch.typed(() =>
       original.setTimeout.call(this, sandboxId, timeoutMs, patch.withOptions(opts))
+    )
+  })
+
+  // (id, x, opts) 形状的第二个：中间那个参数是网络配置，原样透传。
+  setIfPresent('updateNetwork', function updateNetworkWrapped(
+    this: any,
+    sandboxId: string,
+    network: unknown,
+    opts?: Record<string, any>
+  ) {
+    return patch.typed(() =>
+      original.updateNetwork.call(this, sandboxId, network, patch.withOptions(opts))
     )
   })
 }

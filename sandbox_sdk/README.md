@@ -33,15 +33,20 @@ export SUPABASE_SERVICE_ROLE_KEY="eyJhbGciOi..."
 
 ```bash
 git clone https://github.com/volcengine/byted-supabase-cli.git
-npm install ./byted-supabase-cli/sandbox_sdk/node e2b
+(cd byted-supabase-cli/sandbox_sdk/node && npm install && npm pack)   # 构建并打成 tgz
+npm install ./byted-supabase-cli/sandbox_sdk/node/byted-supabase-sandbox-0.1.0.tgz e2b@2.50.0
 ```
+
+先 `npm pack` 再装 tgz，不要直接 `npm install <目录>`：目录安装是软链，包会解析到自己目录下的另一份 `e2b`，补丁打在那份上，您代码里 `import { Sandbox } from 'e2b'` 拿到的类没有被补丁，请求会直接发往 e2b 官方云。
 
 按需追加：
 
 ```bash
 npm install @supabase/supabase-js      # 模式 1：走用户登录拿 session
-npm install @e2b/code-interpreter      # code-interpreter 模板的 runCode
+npm install @e2b/code-interpreter@2.8.0  # code-interpreter 模板的 runCode
 ```
+
+> e2b 要锁在 2.51 以下：从 2.51.0 起 SDK 创建、连接沙箱改走 `/v2/sandboxes`，网关 6.9.1 之前不支持，会返回 404 `sandbox control endpoint is not available`。`@e2b/code-interpreter` 2.8.2 起依赖 `e2b@^2.53`，所以同样锁在 2.8.0。
 
 ## 三、初始化
 
@@ -351,8 +356,10 @@ pip install "git+https://github.com/volcengine/byted-supabase-cli.git#subdirecto
 
 ```bash
 pip install supabase                 # 模式 1：走用户登录拿 session
-pip install e2b-code-interpreter     # code-interpreter 模板的 run_code
+pip install "e2b-code-interpreter<2.10"  # code-interpreter 模板的 run_code
 ```
+
+> 本包把 `e2b` 约束在 `<2.51`（原因同 Node 一节），pip 会自动选出兼容的 `e2b-code-interpreter`（2.10 起要求 `e2b>=2.55`）。
 
 ## 三、初始化
 

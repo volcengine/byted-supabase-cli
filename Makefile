@@ -34,9 +34,17 @@ BYTEDCLI ?= bytedcli
 SKILL_KEEP := SKILL.md references scripts assets
 SKILL_ZIP_NAMES ?= byted-supabase-dev byted-supabase
 
+# AgentKit 分发仓库同步配置。源目录是当前仓库的 skills/byted-supabase，
+# DIST 保留给本地构建产物和 zip，避免影响 make build / make skill-zip。
+SKILL_DIST ?= ../volcengine-agentkit-samples
+SKILL_DIST_RSYNC_OPTS := -a --delete \
+	--exclude='.DS_Store' \
+	--exclude='__pycache__/' \
+	--exclude='*.pyc'
+
 .DEFAULT_GOAL := help
 
-.PHONY: help npm-release npm-release-dry build-cli e2e-live skill-sync skill-zip
+.PHONY: help npm-release npm-release-dry build-cli e2e-live skill-sync skill-sync-dist skill-sync-dist-check skill-zip
 
 # Self-documenting help: lists every target with a `## comment` on its rule line.
 help:
@@ -93,6 +101,29 @@ skill-sync: ## Publish the skill to AgentBuddy
 			--namespace "$(NAMESPACE)" \
 			--name "$(SKILL_NAME)"
 	@echo "✅ skill 已同步到 AgentBuddy"
+
+skill-sync-dist: ## 同步本仓库 Skill 到 AgentKit 分发仓库
+	@test -d "$(SKILL_DIST)" || { echo "❌ AgentKit 分发仓库不存在: $(SKILL_DIST)"; exit 1; }
+	@test -d "$(SKILL_DIST)/skills" || { echo "❌ 分发仓库缺少 skills/ 目录: $(SKILL_DIST)"; exit 1; }
+	@test -d "$(SKILLS_DIR)/$(SKILL_NAME)" || { echo "❌ 源 skill 不存在: $(SKILLS_DIR)/$(SKILL_NAME)"; exit 1; }
+	@test -f "$(SKILLS_DIR)/$(SKILL_NAME)/SKILL.md" || { echo "❌ 源 skill 缺少 SKILL.md: $(SKILLS_DIR)/$(SKILL_NAME)/SKILL.md"; exit 1; }
+	@mkdir -p "$(SKILL_DIST)/skills/$(SKILL_NAME)"
+	@echo "→ 同步 $(SKILLS_DIR)/$(SKILL_NAME) → $(SKILL_DIST)/skills/$(SKILL_NAME)"
+	@rsync $(SKILL_DIST_RSYNC_OPTS) \
+		"$(SKILLS_DIR)/$(SKILL_NAME)/" \
+		"$(SKILL_DIST)/skills/$(SKILL_NAME)/"
+	@echo "✅ Skill 已同步到 AgentKit 分发仓"
+
+skill-sync-dist-check: ## 预览同步 Skill 到 AgentKit 分发仓的差异
+	@test -d "$(SKILL_DIST)" || { echo "❌ AgentKit 分发仓库不存在: $(SKILL_DIST)"; exit 1; }
+	@test -d "$(SKILL_DIST)/skills" || { echo "❌ 分发仓库缺少 skills/ 目录: $(SKILL_DIST)"; exit 1; }
+	@test -d "$(SKILLS_DIR)/$(SKILL_NAME)" || { echo "❌ 源 skill 不存在: $(SKILLS_DIR)/$(SKILL_NAME)"; exit 1; }
+	@echo "=== dry-run: $(SKILLS_DIR)/$(SKILL_NAME) → $(SKILL_DIST)/skills/$(SKILL_NAME) ==="
+	@rsync $(SKILL_DIST_RSYNC_OPTS) -n -v \
+		"$(SKILLS_DIR)/$(SKILL_NAME)/" \
+		"$(SKILL_DIST)/skills/$(SKILL_NAME)/" \
+		| grep -vE '^(sending|sent |total size|$$)' || true
+	@echo "（以上为将发生的改动；无输出表示已一致）"
 
 # Package the checked-in skills as standalone zip archives. Each archive keeps
 # the skill directory as its top-level directory so it can be extracted into

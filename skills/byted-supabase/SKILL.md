@@ -82,6 +82,7 @@ metadata:
 - 需要配置 **Auth（认证）** 或使用 **Realtime（实时）**
 - 需要部署或管理 **Edge Functions**
 - 需要操作 **Storage Bucket**（创建、删除、查看配置、上传/下载对象）
+- 需要运行隔离代码、执行 AI Coding Agent、上传文件或管理临时 **Sandbox**
 - 需要**部署前端静态站点**（并按需与 Supabase 后端打通）
 - 需要获取 Supabase 项目的 **API Key** 或 **连接信息**
 - 需要为 Supabase 数据库 **生成 TypeScript 类型定义**
@@ -192,6 +193,19 @@ AI Gateway 提供 Workspace 分支的大模型访问、图片生成、Seedance �
 - 用量汇总：`ai-gateway usage`
 
 指南包含 Supabase Auth `access_token`、Third-Party Auth JWT、后端 `service_role_key` 的 JavaScript/Python 接入 Demo，以及额度单位、图片模型尺寸和排障说明。命令和参数以 `byted-supabase-cli ai-gateway --help` 为准。
+
+### Sandbox（隔离执行）
+
+涉及运行不可信代码、隔离测试、AI Coding Agent、临时服务或 Sandbox 文件操作时，先阅读 [`references/sandbox-guide.md`](references/sandbox-guide.md)。
+
+- 先检查 `byted-supabase-cli --version` 和 `sandbox --help`，命令不存在就 `byted-supabase-cli update`。
+- 一次性任务和调试用 CLI 的 `create`、`connect`、`exec`、`kill`；应用内连续执行、后台任务用 E2B 兼容 SDK。
+- **e2b SDK 必须低于 2.51**（Node `e2b@2.50.0`，Python 由 `byted_supabase_sandbox` 约束）：2.51 起改走 `/v2/sandboxes`，网关 6.9.1 之前返回 404。Node SDK 要先 `npm pack` 再装 tgz，不要直接装目录。
+- 创建身份三选一：用户 session（推荐）、后端 service_role + `ownerUserId`、service_role + `PassServiceRoleJwtToSandbox`（绕过 RLS，慎用）。anon key 不能当 `apiKey`。
+- 严格区分管理面凭据、CLI 的 `envdAccessToken`、用户 session token 和 service_role key；`sandboxID` 和 token 只放环境变量，不输出。执行结束或失败后都要 kill。
+- 后台命令必须 `timeoutMs: 0`，启动后立即 `disconnect()`。
+- 结果要看 `exit_code` / `status` 和 stdout / stderr，外层命令成功不代表沙箱内任务成功。
+- 端口预览地址默认持有即可访问，只交给沙箱归属者；遇到 401、501、502 按参考文档的常见问题排查。
 
 ### 分支（branch）
 
@@ -304,6 +318,8 @@ AI Gateway 提供 Workspace 分支的大模型访问、图片生成、Seedance �
 | [`references/pg-best-practices/index.md`](references/pg-best-practices/index.md) | Postgres 性能与最佳实践（索引 / 连接 / 锁 / 监控等） |
 | [`references/edge-function-dev-guide.md`](references/edge-function-dev-guide.md) | Edge Function 编写与部署 |
 | [`references/sdk-pitfalls.md`](references/sdk-pitfalls.md) | SDK 与查询常见陷阱（URL 长度限制 / 错误捕获 / 索引评估） |
+| [`references/sandbox-guide.md`](references/sandbox-guide.md) | Sandbox CLI/SDK 生命周期、凭据边界与失败诊断 |
+| `scripts/sandbox-cli-lifecycle.sh`、`scripts/sandbox-node.mjs`、`scripts/sandbox-python.py` | Sandbox CLI 生命周期和 Node/Python 完整示例 |
 
 > 📚 **Postgres 最佳实践细分**（均由上方 [`index.md`](references/pg-best-practices/index.md) 索引，可按需直达）：[`query.md`](references/pg-best-practices/query.md) · [`conn.md`](references/pg-best-practices/conn.md) · [`security.md`](references/pg-best-practices/security.md) · [`schema.md`](references/pg-best-practices/schema.md) · [`lock.md`](references/pg-best-practices/lock.md) · [`data.md`](references/pg-best-practices/data.md) · [`monitor.md`](references/pg-best-practices/monitor.md) · [`advanced.md`](references/pg-best-practices/advanced.md)
 

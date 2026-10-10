@@ -251,10 +251,27 @@ ApiKey = Union[str, Callable[[], Optional[str]], None]
 
 _MISSING = object()
 
-#: ``connect`` / ``kill`` / ``get_info`` are ``class_method_variant`` descriptors that dispatch to
+#: ``connect`` / ``kill`` / ``pause`` / … are ``class_method_variant`` descriptors that dispatch to
 #: these ``_cls_*`` twins. Wrapping the twin supplies options to the class-level form while leaving
 #: the instance-method form (``sbx.kill()``, which already carries its own config) untouched.
-_CLS_FORWARDS = ("_cls_connect_sandbox", "_cls_kill", "_cls_get_info")
+#:
+#: **必须覆盖 SDK 里每一个 class_method_variant 孪生方法**（护栏见 test_e2b_gateway.py 的
+#: ``test_cls_forwards_cover_every_class_method_variant``）。漏掉一个的后果不是"少个功能"：
+#: 静态入口点会自己新建一个没有连接设置的 ApiClient，于是**静默打向 e2b 官方云**，
+#: 用户拿到的是一句"请去 e2b.dev 拿 API key"——指向一个完全错误的方向。
+#: ``_cls_pause`` 就这么漏过：一期 pause 关着没人踩到，e2b 上一开放就炸。
+_CLS_FORWARDS = (
+    "_cls_connect_sandbox",
+    "_cls_kill",
+    "_cls_get_info",
+    "_cls_pause",
+    "_cls_set_timeout",
+    "_cls_get_metrics",
+    "_cls_update_network",
+    "_cls_create_snapshot",
+    "_cls_list_snapshots",
+    "_cls_fork_sandbox",
+)
 
 #: Set on a class we have patched, so a re-install can detect and undo the previous one.
 _MARKER = "__byted_supabase_patched__"

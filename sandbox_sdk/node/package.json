@@ -20,8 +20,8 @@
     "prepare": "npm run build"
   },
   "peerDependencies": {
-    "@e2b/code-interpreter": ">=2.0.0 <3",
-    "e2b": ">=2.31.0 <3"
+    "@e2b/code-interpreter": ">=2.0.0 <2.8.2",
+    "e2b": ">=2.31.0 <2.51.0"
   },
   "peerDependenciesMeta": {
     "@e2b/code-interpreter": {
@@ -29,7 +29,7 @@
     }
   },
   "devDependencies": {
-    "e2b": "^2.33.0",
+    "e2b": "2.50.0",
     "typescript": "^5.4.0"
   },
   "repository": {

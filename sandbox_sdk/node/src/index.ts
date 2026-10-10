@@ -11,4 +11,5 @@
  * Everything after that call is stock E2B usage -- same imports, same API, same documentation.
  */
 
-export * from './e2b_gateway'
+// Node ESM needs the extension in the emitted JS; TS resolves it to e2b_gateway.ts.
+export * from './e2b_gateway.js'
