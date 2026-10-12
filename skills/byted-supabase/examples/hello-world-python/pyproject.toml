@@ -1,0 +1,11 @@
+[project]
+name = "byted-supabase-sandbox-hello-world-python"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+  "byted-supabase-sandbox @ git+https://github.com/volcengine/byted-supabase-cli.git#subdirectory=sandbox_sdk/python",
+  "e2b>=2.31,<2.51",
+]
+
+[project.scripts]
+start = "main:main"

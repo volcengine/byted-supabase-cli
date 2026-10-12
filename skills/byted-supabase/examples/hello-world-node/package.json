@@ -1,0 +1,11 @@
+{
+  "name": "byted-supabase-sandbox-hello-world-node",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "e2b": "2.50.0"
+  }
+}
