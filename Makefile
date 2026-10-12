@@ -28,7 +28,7 @@ BINARY  ?= byted-supabase-cli
 
 # Skill 打包配置
 SKILLS_DIR ?= skills
-ZIP_DIR ?= .tmp
+ZIP_DIR ?= $(DIST)
 SKILL_ZIP_NAMES ?= byted-supabase
 ZIP_EXCLUDES := '*/.DS_Store' '*__pycache__*' '*.pyc' '*/.venv/*' '*/.ruff_cache/*' '*/output/*'
 
@@ -39,7 +39,7 @@ BYTEDCLI ?= bytedcli
 SKILL_KEEP := SKILL.md references scripts assets
 
 # AgentKit 分发仓库同步配置。源目录是当前仓库的 skills/byted-supabase，
-# DIST 保留给本地构建产物和 zip，避免影响 make build / make skill-zip。
+# DIST 保留给本地构建产物和 zip。
 SKILL_DIST ?= ../volcengine-agentkit-samples
 SKILL_DIST_RSYNC_OPTS := -a --delete \
 	--exclude='.DS_Store' \
