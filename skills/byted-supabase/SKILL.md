@@ -1,7 +1,7 @@
 ---
 name: byted-supabase
 description: 火山引擎 Supabase . 管理 AIDAP Supabase 项目、工作区、数据库、分支、Auth、Realtime、Edge Functions、Storage、API Keys、SQL、Schema 变更、TypeScript 类型生成和 MCP 集成。
-version: 2.3.7
+version: 2.3.8
 license: Apache-2.0
 metadata:
   openclaw:
@@ -319,6 +319,8 @@ AI Gateway 提供 Workspace 分支的大模型访问、图片生成、Seedance �
 | [`references/edge-function-dev-guide.md`](references/edge-function-dev-guide.md) | Edge Function 编写与部署 |
 | [`references/sdk-pitfalls.md`](references/sdk-pitfalls.md) | SDK 与查询常见陷阱（URL 长度限制 / 错误捕获 / 索引评估） |
 | [`references/sandbox-guide.md`](references/sandbox-guide.md) | Sandbox CLI/SDK 生命周期、凭据边界与失败诊断 |
+| [`examples/hello-world-node/`](examples/hello-world-node/) | Node.js Sandbox SDK 最小完整示例：注册/登录用户、创建 Sandbox、执行命令并回收 |
+| [`examples/hello-world-python/`](examples/hello-world-python/) | Python Sandbox SDK 最小完整示例：注册/登录用户、创建 Sandbox、执行命令并回收 |
 | `scripts/sandbox-cli-lifecycle.sh`、`scripts/sandbox-node.mjs`、`scripts/sandbox-python.py` | Sandbox CLI 生命周期和 Node/Python 完整示例 |
 
 > 📚 **Postgres 最佳实践细分**（均由上方 [`index.md`](references/pg-best-practices/index.md) 索引，可按需直达）：[`query.md`](references/pg-best-practices/query.md) · [`conn.md`](references/pg-best-practices/conn.md) · [`security.md`](references/pg-best-practices/security.md) · [`schema.md`](references/pg-best-practices/schema.md) · [`lock.md`](references/pg-best-practices/lock.md) · [`data.md`](references/pg-best-practices/data.md) · [`monitor.md`](references/pg-best-practices/monitor.md) · [`advanced.md`](references/pg-best-practices/advanced.md)
