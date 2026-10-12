@@ -26,13 +26,17 @@ VERSION ?= $(shell git describe --tags 2>/dev/null | sed 's/^v//')
 DIST    ?= dist
 BINARY  ?= byted-supabase-cli
 
-# AgentBuddy skill 发布配置
+# Skill 打包配置
 SKILLS_DIR ?= skills
+ZIP_DIR ?= .tmp
+SKILL_ZIP_NAMES ?= byted-supabase
+ZIP_EXCLUDES := '*/.DS_Store' '*__pycache__*' '*.pyc' '*/.venv/*' '*/.ruff_cache/*' '*/output/*'
+
+# AgentBuddy skill 发布配置
 SKILL_NAME ?= byted-supabase
 NAMESPACE ?=
 BYTEDCLI ?= bytedcli
 SKILL_KEEP := SKILL.md references scripts assets
-SKILL_ZIP_NAMES ?= byted-supabase-dev byted-supabase
 
 # AgentKit 分发仓库同步配置。源目录是当前仓库的 skills/byted-supabase，
 # DIST 保留给本地构建产物和 zip，避免影响 make build / make skill-zip。
@@ -44,7 +48,7 @@ SKILL_DIST_RSYNC_OPTS := -a --delete \
 
 .DEFAULT_GOAL := help
 
-.PHONY: help npm-release npm-release-dry build-cli e2e-live skill-sync skill-sync-dist skill-sync-dist-check skill-zip
+.PHONY: help npm-release npm-release-dry build-cli e2e-live skill-sync skill-sync-dist skill-sync-dist-check zip skill-zip
 
 # Self-documenting help: lists every target with a `## comment` on its rule line.
 help:
@@ -128,16 +132,19 @@ skill-sync-dist-check: ## 预览同步 Skill 到 AgentKit 分发仓的差异
 # Package the checked-in skills as standalone zip archives. Each archive keeps
 # the skill directory as its top-level directory so it can be extracted into
 # a skills directory without losing the skill name.
-skill-zip: ## Package byted-supabase skills as zip archives in ./dist
+zip: ## Package skills as zip archives in ./.tmp
 	@command -v zip >/dev/null 2>&1 || { echo "❌ 未找到 zip 命令"; exit 1; }
-	@mkdir -p "$(DIST)"
+	@test -n "$(strip $(SKILL_ZIP_NAMES))" || { echo "❌ 没有可打包的 skill"; exit 1; }
+	@mkdir -p "$(ZIP_DIR)"
 	@set -eu; \
 	for skill in $(SKILL_ZIP_NAMES); do \
 		dir="$(SKILLS_DIR)/$$skill"; \
 		test -d "$$dir" || { echo "❌ skill 不存在: $$dir"; exit 1; }; \
 		test -f "$$dir/SKILL.md" || { echo "❌ skill 缺少 SKILL.md: $$dir/SKILL.md"; exit 1; }; \
-		archive="$(DIST)/$$skill.zip"; \
+		archive="$(abspath $(ZIP_DIR))/$$skill.zip"; \
 		rm -f "$$archive"; \
-		(cd "$(SKILLS_DIR)" && zip -qr "../$$archive" "$$skill" -x "$$skill/.DS_Store" "$$skill/**/.DS_Store"); \
+		(cd "$(SKILLS_DIR)" && zip -q -r -X "$$(cd -P "$$(dirname "$$archive")" && pwd)/$$(basename "$$archive")" "$$skill" -x $(ZIP_EXCLUDES)); \
 		echo "✅ 已生成 $$archive"; \
 	done
+
+skill-zip: zip ## Compatibility alias for zip
