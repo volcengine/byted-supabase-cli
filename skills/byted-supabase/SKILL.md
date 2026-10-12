@@ -1,7 +1,7 @@
 ---
 name: byted-supabase
 description: 火山引擎 Supabase . 管理 AIDAP Supabase 项目、工作区、数据库、分支、Auth、Realtime、Edge Functions、Storage、API Keys、SQL、Schema 变更、TypeScript 类型生成和 MCP 集成。
-version: 2.3.6
+version: 2.3.7
 license: Apache-2.0
 metadata:
   openclaw:

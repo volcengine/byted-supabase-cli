@@ -55,6 +55,18 @@
 
 补充算力（compute）命令：`computes list --workspace-id <ref> [--branch-id br-...] [--service-type Supabase|Database]`（列出该分支下每个 compute 实例，含 `ServiceType`/`ComputeStatus`/`AutoScalingLimitMinCU`/`AutoScalingLimitMaxCU`）、`computes get <compute-id> --workspace-id <ref>`（查单个）、`computes update <compute-id> --workspace-id <ref> [--name <n>] [--min-cu <n> --max-cu <n>]`（改名 / 改算力规格）。
 
+## Sandbox（隔离执行）
+
+| 动作 | 命令 |
+|------|------|
+| 列出平台模板 | `byted-supabase-cli templates list --workspace-id ws-... --branch-id br-... -o json` |
+| 创建 Sandbox | `byted-supabase-cli sandbox create --workspace-id ws-... --branch-id br-... --template-name <platform-template> --detach -o json` |
+| 连接 / 执行 / 回收 | `byted-supabase-cli sandbox connect` ／ `sandbox exec` ／ `sandbox kill --yes` |
+| 暂停 / 恢复 Sandbox | **不支持**；没有 `sandbox pause` / `sandbox resume` 命令 |
+| 创建 / 上传自定义模板 | **不支持**；没有对应 CLI 或 SDK 能力 |
+
+> Sandbox 生命周期最长 24 小时，不支持暂停和恢复。实例到期或被回收后，必须创建新 Sandbox，并从 Storage 等外部持久化介质恢复文件和状态。只能使用 `templates list` 返回的平台模板；额外依赖通过 `sandbox exec`、`sandbox files` 或 SDK 在运行时安装。
+
 > **🔍 校验算力改动是否生效，必须按 ServiceType 查，不能用 `--detail`**：`projects list --detail` 返回的 `compute_min_cu`/`compute_max_cu`/`enable_analytics` 是**笼统的单一聚合值，实测对应的是 Database 服务**，不区分 Supabase / Database 两种服务类型。**用 `projects settings compute <ref> --service-type Supabase ...` 改了 Supabase 服务的算力后，如果拿 `projects list --detail` 回查，会看到 Database 服务那份没变的旧值，从而误判"修改失败"——实际改动已经生效，只是查错了字段。** 正确校验方式：`byted-supabase-cli computes list --workspace-id <ref> --service-type Supabase -o json`，核对返回数组里目标 compute 的 `AutoScalingLimitMinCU`/`AutoScalingLimitMaxCU`/`ComputeStatus`。（`SuspendTimeoutSeconds` 是 workspace 级单值，不受此限制，`--detail` 里的 `suspend_timeout_seconds` 可以直接信。）
 
 > **💤 休眠超时（SuspendTimeoutSeconds）**：分支算力**空闲多少秒后自动休眠（scale-to-zero）**的阈值，到点休眠、下次访问自动唤醒（这是「休眠」非「暂停」）。**取值语义**：`-1` = 显式关闭自动休眠（算力常驻 / 永不休眠）；`0` = 未设置的平台默认（行为等同常驻）；`300`–`604800` 秒（5 分钟–7 天）= 启用。**新建 workspace 默认不休眠**（`projects list --detail` 显示为 `0`）；想**关闭**已开启的自动休眠传 `-1`（不是 `0`）。改它用 `projects settings compute <ref> --service-type Supabase --min-cu 0.5 --max-cu 2 --suspend-timeout-seconds <秒> --yes`；**非交互/agent 模式 `--yes`（变更操作，缺它报 `missing required flag: --yes`）与 `--min-cu`/`--max-cu` 都不能少**。⚠️ **Supabase 服务的 min CU 下限是 `0.5`，必须 ≥0.5**（直接用 `0.5`/`2`）；**千万别用 `projects list --detail` 查到的值回填 min** —— 那是 Database 服务的 `0.25`，`<0.5` 配 Supabase 会被服务端拒为 `InvalidParameter`。休眠超时是 workspace 级单值，经 Supabase 服务设置即生效。`projects create` 成功后应**主动说明并非阻塞地询问**是否设置，**推荐 1 小时（`--suspend-timeout-seconds 3600`）**，用户无需要则保持默认不休眠。

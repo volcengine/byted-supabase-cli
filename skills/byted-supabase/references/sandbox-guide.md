@@ -39,7 +39,111 @@ byted-supabase-cli templates list --workspace-id "$WORKSPACE_ID" --branch-id "$B
 | `code-interpreter` | Python 数据处理、Jupyter，结构化执行结果 |
 | `codex` / `opencode` | 预装对应 Coding Agent CLI；平台把 AI Gateway 配置注入沙箱（opencode 为 `OPENCODE_CONFIG_CONTENT`，用法见第 10 节）。`opencode` 模板为 Debian、用户 `user`、免密 sudo、2 核 4GB，自带 python3 和 node，没有 ripgrep、Office 库、LibreOffice 和浏览器 |
 
-模板不能自定义，额外依赖只能运行时安装。
+**平台限制：**
+
+- Sandbox 不支持暂停和恢复，没有可用的 `pause` / `resume` 生命周期命令。
+- Sandbox 实例到期或被回收后，需新建 Sandbox，并从 Storage 等外部持久化介质恢复文件和状态。
+- Sandbox 不支持创建、上传或注册自定义模板。只能使用 `templates list` 返回的平台模板；额外依赖和初始化逻辑只能在 Sandbox 创建后通过命令或 SDK 运行时安装、执行。
+
+## 2.1 火山引擎 Sandbox 特有能力
+
+### 平台环境变量
+
+Sandbox 创建后，平台会在运行时为进程或 Jupyter 内核注入基础平台环境变量；这些变量不是镜像启动时的
+`boot env`，而是通过运行期注入，因此在 `sudo` 重入的模板中也能生效：
+
+| 环境变量 | 含义 | 注入条件 |
+|---|---|---|
+| `SUPABASE_URL` | 当前分支的 Supabase API 地址；优先使用公网地址 | 平台配置了分支地址时 |
+| `SUPABASE_ANON_KEY` | 通过 Kong `apikey` 校验的公开 key，只负责“过门”，不提供 RLS 权限 | 平台配置了 anon key 时 |
+| `SANDBOX_JWT` | 绑定当前 Sandbox 和归属用户的短期 JWT，用于访问 Supabase API 并执行 RLS | 创建身份满足下方 JWT 签发条件时 |
+
+访问 Supabase API 时通常需要同时使用：
+
+```bash
+curl "$SUPABASE_URL/rest/v1/<table>" \
+  -H "apikey: $SUPABASE_ANON_KEY" \
+  -H "Authorization: Bearer $SANDBOX_JWT"
+```
+
+`SUPABASE_ANON_KEY` 是公开的 Kong 信封，不能替代 `SANDBOX_JWT`；真正决定用户身份和 RLS 权限的是
+`Authorization` 中的 JWT。平台不会把长期有效的 `SUPABASE_SERVICE_ROLE_KEY` 注入 Sandbox。
+
+平台环境变量是默认值，优先级从低到高为：
+
+```text
+PlatformEnv（平台默认值）< SandboxEnv（创建时 env）< RequestEnv（单次命令 env）
+```
+
+用户在创建参数或单次命令中显式提供同名变量时，用户值会覆盖平台默认值。请勿因此把服务端密钥、
+原始用户 token 或 `SANDBOX_JWT` 写入日志、镜像或代码仓库。
+
+### 三方用户与四方用户身份
+
+这里的“三方/四方”对应网关代码中的两类 Supabase JWT 身份：三方是受信后端调用方，四方是终端用户调用方。
+
+| 调用方 | 控制面 JWT | 创建方式 | Sandbox 内身份 |
+|---|---|---|---|
+| 三方用户 / 受信后端 | `role=service_role` | 使用后端 `service_role` JWT 创建；可通过 `metadata.ownerUserId` 代某个四方用户创建 | 传 `ownerUserId` 时签发该用户 scoped 的 `authenticated` JWT |
+| 三方用户 / 受信管理任务 | `role=service_role` | 使用后端 `service_role` JWT，并显式传 `metadata.PassServiceRoleJwtToSandbox=true` | 签发短期 `service_role` `SANDBOX_JWT`，绕过 RLS；仅用于完全受控的管理任务 |
+| 四方用户 / 终端用户 | `role=authenticated` 且必须有 `sub` | 使用该用户的 Supabase session `access_token` 创建；实例需开启 `control.allow_authenticated` | 平台按该用户 `sub` 签发 `SANDBOX_JWT`，仅代表该用户并受 RLS 约束 |
+
+关键规则：
+
+- `anon` JWT 不能创建 Sandbox，也不能作为 SDK 的 `apiKey`。
+- 四方用户持 Supabase session JWT 直建只在实例的 `control.allow_authenticated` 开关开启时允许；
+  该用户的 `sub` 会成为 Sandbox 归属和配额主体。
+- 三方用户使用 `service_role` 代建四方用户的 Sandbox 时，优先传 `metadata.ownerUserId`，获得最小权限的
+  用户 scoped JWT；不要默认请求 `PassServiceRoleJwtToSandbox`。
+- `ownerUserId` 与 `PassServiceRoleJwtToSandbox=true` 不能同时使用；后者是显式提权选项，只允许
+  `service_role` 调用方使用。
+- 平台会按归属用户计算 Sandbox 配额；`ownerUserId` 是业务用户 ID，不是 Sandbox ID，也不是 JWT 原文。
+
+示例：
+
+```js
+// 三方用户：使用当前登录用户的 Supabase session access_token。
+// 这是 SDK 的 apiKey，不是 CLI 的管理面登录凭据。
+initBytedSupabaseSandbox({
+  url: process.env.SUPABASE_URL,
+  apiKey: userSession.access_token,
+})
+const sandbox = await Sandbox.create("base")
+```
+
+```bash
+# 三方用户：后端 service_role 代某个四方终端用户创建。
+# CLI 示例使用 CLI 自身的管理面登录态；SDK 也可用 service_role JWT。
+byted-supabase-cli sandbox create \
+  --workspace-id "$WORKSPACE_ID" \
+  --branch-id "$BRANCH_ID" \
+  --template-name base \
+  --metadata "ownerUserId=$USER_ID" \
+  --detach -o json
+```
+
+示例中的 token、Sandbox ID 和 `ownerUserId` 只使用占位符，不要回显真实值。
+
+### AI Gateway 模板适配
+
+平台会从同实例 AI Gateway 的模型目录解析当前默认模型，并对 Agent 模板做运行期适配。不是所有模板
+都会注入 AI Gateway 变量：
+
+| 模板名前缀 | 注入内容 | 注入方式 |
+|---|---|---|
+| `claude` / `claude-*` | `ANTHROPIC_BASE_URL`、`ANTHROPIC_AUTH_TOKEN`、`ANTHROPIC_MODEL` | 运行期环境变量 |
+| `codex` / `codex-*` | Codex provider 的 `base_url`、模型配置；认证引用 `SANDBOX_JWT` | Sandbox claim 后写入 `/etc/codex/config.toml` |
+| `opencode` / `opencode-*` | `OPENCODE_CONFIG_CONTENT`，其中 provider 指向 Supabase AI Gateway，认证引用 `SANDBOX_JWT` | 运行期环境变量 |
+| `base`、`code-interpreter` 或其他模板 | 不注入 Agent 专属 AI Gateway 配置 | 使用模板原生环境 |
+
+Agent 适配只有在以下条件同时满足时才启用：模板名称匹配、平台签发了 `SANDBOX_JWT`、存在
+`SUPABASE_URL`、AI Gateway 能解析出模型，并且实例公网地址可从 Sandbox 访问。私网专用实例不会注入
+这组 Agent 配置，避免生成必然连接超时的地址。
+
+用户可通过创建 metadata 中的 `DisableAiGatewayInjection=true` 关闭 Agent 专属适配；该开关只停止
+`ANTHROPIC_*`、`OPENCODE_CONFIG_CONTENT` 和 Codex 配置写入，不影响基础的 `SUPABASE_URL`、
+`SUPABASE_ANON_KEY` 或身份 JWT。若用户自带 Anthropic/OpenAI 配置并希望指向其他网关，应使用这个
+开关，避免平台配置覆盖用户预期。
 
 ## 3. 安装 SDK
 
@@ -218,7 +322,7 @@ curl -X DELETE "$SUPABASE_URL/sandbox/v1/sandboxes/$SANDBOX_ID" \
 - **后台命令**：`sandbox.commands.run(cmd, { background: true, timeoutMs: 0 })`。`timeoutMs: 0` 不能省，否则 SDK 60 秒后结束命令。启动后立即 `handle.disconnect()`：每个实例只有 64 条数据面连接，不要让前端或后端长期挂着命令流。
 - **环境变量**：envd 启动的命令不继承镜像里的 ENV，需要的变量（如 `PIP_INDEX_URL`）在命令里自己设。
 - **耗时**：命中预热池建沙箱约 1 秒；池空时冷启动 90–133 秒，`create` 一直阻塞，`requestTimeoutMs` 要留够。
-- **生命周期**：最长 24 小时，不支持暂停。需要长期保留的文件和状态写回 Storage，下次在新沙箱里恢复。
+- **生命周期**：最长 24 小时，不支持暂停和恢复，也不支持通过 pause/resume 保留实例状态。需要长期保留的文件和状态写回 Storage，下次创建新沙箱后恢复状态。
 - **配额**：每用户每天默认 100 个沙箱，实例默认最多 120 个并发沙箱（`sandbox quota` 查看）。
 - **网络**：默认可以访问公网。apt 已配 volces 镜像；pip 未配源，推荐 `https://mirrors.volces.com/pypi/simple/`。
 - **端口预览**：`sandbox port url` 或 `sandbox.getHost(port)` 返回 `{SUPABASE_URL}/sandbox/v1/proxy/{sandbox_id}/{port}/`，末尾斜杠不能省（页面里的相对资源靠它）。默认（`allowPublicTraffic` 为 true）持有地址即可访问、CORS 全开，所以地址只给沙箱归属者；创建时关掉 `allowPublicTraffic` 后，请求要带 `e2b-traffic-access-token`。30 秒无响应返回 502；WebSocket 需要网关 6.9.1 及以上。
